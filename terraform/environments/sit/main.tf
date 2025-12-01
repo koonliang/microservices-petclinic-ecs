@@ -22,38 +22,39 @@ provider "aws" {
 }
 
 locals {
+  # SIT: Each service runs on separate EC2 instance
   services = {
     "config-server" = {
-      cpu                = 128
-      memory_reservation = 200
+      cpu                = 256
+      memory_reservation = 400
       port               = 8888
       desired_count      = 1
       enable_alb         = false
     }
     "api-gateway" = {
-      cpu                = 128
-      memory_reservation = 200
+      cpu                = 256
+      memory_reservation = 400
       port               = 8080
       desired_count      = 1
       enable_alb         = true
     }
     "customers-service" = {
-      cpu                = 128
-      memory_reservation = 150
+      cpu                = 256
+      memory_reservation = 400
       port               = 8081
       desired_count      = 1
       enable_alb         = false
     }
     "visits-service" = {
-      cpu                = 128
-      memory_reservation = 150
+      cpu                = 256
+      memory_reservation = 400
       port               = 8082
       desired_count      = 1
       enable_alb         = false
     }
     "vets-service" = {
-      cpu                = 128
-      memory_reservation = 150
+      cpu                = 256
+      memory_reservation = 400
       port               = 8083
       desired_count      = 1
       enable_alb         = false
@@ -85,10 +86,9 @@ module "ecr" {
 }
 
 #############################
-# Service Discovery (only if enabled)
+# Service Discovery (ENABLED for SIT)
 #############################
 module "service_discovery" {
-  count  = var.enable_service_discovery ? 1 : 0
   source = "../../modules/service-discovery"
 
   project       = var.project
@@ -98,7 +98,7 @@ module "service_discovery" {
 }
 
 #############################
-# ECS Cluster
+# ECS Cluster (Multiple EC2 instances)
 #############################
 module "ecs_cluster" {
   source = "../../modules/ecs-cluster"
@@ -110,6 +110,11 @@ module "ecs_cluster" {
   private_subnet_ids    = module.networking.private_subnet_ids
   ecs_security_group_id = module.networking.ecs_security_group_id
   enable_rds            = var.enable_rds
+  
+  # SIT: More EC2 instances
+  min_size         = var.ec2_min_size
+  max_size         = var.ec2_max_size
+  desired_capacity = var.ec2_desired_capacity
 }
 
 #############################
@@ -168,9 +173,9 @@ module "ecs_services" {
   enable_alb       = each.value.enable_alb
   target_group_arn = module.alb.target_group_arn
 
-  # Service Discovery (disabled for DEV - uses localhost)
-  enable_service_discovery = var.enable_service_discovery
-  service_discovery_arn    = var.enable_service_discovery ? module.service_discovery[0].service_arns[each.key] : ""
+  # Service Discovery ENABLED for SIT (multi-EC2)
+  enable_service_discovery = true
+  service_discovery_arn    = module.service_discovery.service_arns[each.key]
   discovery_namespace      = "petclinic.local"
 
   # RDS (optional)

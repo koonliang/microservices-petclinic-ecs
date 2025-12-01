@@ -11,7 +11,7 @@ resource "aws_ecs_task_definition" "service" {
 
     portMappings = [{
       containerPort = var.container_port
-      hostPort      = var.enable_alb ? 0 : var.container_port
+      hostPort      = var.container_port  # Static host port (required for A records)
       protocol      = "tcp"
     }]
 
@@ -21,12 +21,23 @@ resource "aws_ecs_task_definition" "service" {
         value = var.enable_rds ? "docker,aws,mysql" : "docker,aws"
       },
       {
+        # Use Cloud Map DNS for multi-EC2, localhost for single-EC2
         name  = "CONFIG_SERVER_URL"
-        value = "http://config-server.petclinic.local:8888"
+        value = var.enable_service_discovery ? "http://config-server.${var.discovery_namespace}:8888" : "http://localhost:8888"
       },
       {
         name  = "EUREKA_CLIENT_ENABLED"
         value = "false"
+      },
+      {
+        # Tell Spring which mode we're in (useful for gateway routing)
+        name  = "SERVICE_DISCOVERY_ENABLED"
+        value = tostring(var.enable_service_discovery)
+      },
+      {
+        # Pass the namespace so app can construct URLs if needed
+        name  = "SERVICE_DISCOVERY_NAMESPACE"
+        value = var.discovery_namespace
       }
       ], var.enable_rds && var.rds_endpoint != "" ? [
       {
@@ -75,6 +86,7 @@ resource "aws_ecs_service" "service" {
   desired_count   = var.desired_count
   launch_type     = "EC2"
 
+  # Service Discovery (only for SIT/PROD with multiple EC2s)
   dynamic "service_registries" {
     for_each = var.enable_service_discovery ? [1] : []
     content {
@@ -84,6 +96,7 @@ resource "aws_ecs_service" "service" {
     }
   }
 
+  # ALB (only for api-gateway)
   dynamic "load_balancer" {
     for_each = var.enable_alb ? [1] : []
     content {
@@ -106,5 +119,5 @@ resource "aws_ecs_service" "service" {
 
 resource "aws_cloudwatch_log_group" "service" {
   name              = "/ecs/${var.project}/${var.service_name}"
-  retention_in_days = 3 # Minimal retention
+  retention_in_days = 3
 }

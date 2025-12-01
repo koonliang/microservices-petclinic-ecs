@@ -7,7 +7,7 @@ variable "project" {
 variable "environment" {
   description = "Environment name"
   type        = string
-  default     = "dev"
+  default     = "sit"
 }
 
 variable "aws_region" {
@@ -19,7 +19,7 @@ variable "aws_region" {
 variable "vpc_cidr" {
   description = "VPC CIDR block"
   type        = string
-  default     = "10.0.0.0/16"
+  default     = "10.1.0.0/16"  # Different from DEV
 }
 
 variable "availability_zones" {
@@ -41,28 +41,39 @@ variable "image_tag" {
 }
 
 #############################
-# RDS (Optional)
+# EC2 Auto Scaling
+#############################
+
+variable "ec2_min_size" {
+  description = "Minimum number of EC2 instances"
+  type        = number
+  default     = 5  # One per service
+}
+
+variable "ec2_max_size" {
+  description = "Maximum number of EC2 instances"
+  type        = number
+  default     = 5
+}
+
+variable "ec2_desired_capacity" {
+  description = "Desired number of EC2 instances"
+  type        = number
+  default     = 5
+}
+
+#############################
+# RDS
 #############################
 
 variable "enable_rds" {
-  description = "Enable RDS MySQL (default: false, uses in-memory HSQLDB)"
+  description = "Enable RDS MySQL"
   type        = bool
-  default     = false
+  default     = true  # SIT uses real database
 }
 
 variable "db_password" {
-  description = "Database password (required if enable_rds = true)"
+  description = "Database password"
   type        = string
   sensitive   = true
-  default     = ""
-}
-
-#############################
-# Service Discovery
-#############################
-
-variable "enable_service_discovery" {
-  description = "Enable Cloud Map service discovery (for multi-EC2 environments like SIT/PROD)"
-  type        = bool
-  default     = false  # DEV uses localhost
 }

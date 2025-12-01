@@ -27,3 +27,25 @@ variable "enable_rds" {
   type    = bool
   default = false
 }
+
+#############################
+# Auto Scaling Group Size
+#############################
+
+variable "min_size" {
+  description = "Minimum number of EC2 instances"
+  type        = number
+  default     = 1
+}
+
+variable "max_size" {
+  description = "Maximum number of EC2 instances"
+  type        = number
+  default     = 1
+}
+
+variable "desired_capacity" {
+  description = "Desired number of EC2 instances"
+  type        = number
+  default     = 1
+}

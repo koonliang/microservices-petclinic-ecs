@@ -769,7 +769,7 @@ resource "aws_service_discovery_service" "services" {
     
     dns_records {
       ttl  = 10
-      type = "A"
+      type = "SRV"  # Must be SRV for bridge network mode (A record only works with awsvpc)
     }
     
     routing_policy = "MULTIVALUE"

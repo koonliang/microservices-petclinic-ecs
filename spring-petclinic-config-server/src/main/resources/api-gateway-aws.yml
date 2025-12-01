@@ -1,0 +1,22 @@
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: vets-service
+          uri: http://vets-service.petclinic.local:8083
+          predicates:
+            - Path=/api/vet/**
+          filters:
+            - StripPrefix=2
+        - id: visits-service
+          uri: http://visits-service.petclinic.local:8082
+          predicates:
+            - Path=/api/visit/**
+          filters:
+            - StripPrefix=2
+        - id: customers-service
+          uri: http://customers-service.petclinic.local:8081
+          predicates:
+            - Path=/api/customer/**
+          filters:
+            - StripPrefix=2

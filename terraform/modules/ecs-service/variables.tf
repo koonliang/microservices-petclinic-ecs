@@ -64,16 +64,6 @@ variable "target_group_arn" {
   default = ""
 }
 
-variable "enable_service_discovery" {
-  type    = bool
-  default = true
-}
-
-variable "service_discovery_arn" {
-  type    = string
-  default = ""
-}
-
 variable "enable_rds" {
   type    = bool
   default = false
@@ -92,4 +82,26 @@ variable "db_secret_arn" {
 variable "additional_env_vars" {
   type    = list(map(string))
   default = []
+}
+
+#############################
+# Service Discovery (for SIT/PROD)
+#############################
+
+variable "enable_service_discovery" {
+  description = "Enable Cloud Map service discovery (for multi-EC2 environments)"
+  type        = bool
+  default     = false
+}
+
+variable "service_discovery_arn" {
+  description = "Cloud Map service ARN"
+  type        = string
+  default     = ""
+}
+
+variable "discovery_namespace" {
+  description = "Service discovery namespace (e.g., petclinic.local)"
+  type        = string
+  default     = "petclinic.local"
 }
