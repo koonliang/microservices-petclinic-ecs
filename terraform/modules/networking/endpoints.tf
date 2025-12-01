@@ -54,6 +54,9 @@ locals {
     "ecs-agent",     # ECS agent communication
     "ecs-telemetry", # ECS telemetry
     "logs",          # CloudWatch Logs
+    "ssm",           # SSM Session Manager
+    "ssmmessages",   # SSM Session Manager messages
+    "ec2messages",   # SSM Agent messages
   ]
 }
 

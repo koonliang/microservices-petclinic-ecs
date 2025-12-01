@@ -11,7 +11,7 @@ resource "aws_ecs_task_definition" "service" {
 
     portMappings = [{
       containerPort = var.container_port
-      hostPort      = var.container_port  # Static host port (required for A records)
+      hostPort      = var.container_port
       protocol      = "tcp"
     }]
 
@@ -26,9 +26,10 @@ resource "aws_ecs_task_definition" "service" {
         )
       },
       {
-        # Use Cloud Map DNS for multi-EC2, localhost for single-EC2
+        # Use Docker bridge gateway to reach other containers on same host
+        # 172.17.0.1 is the default Docker bridge gateway IP
         name  = "CONFIG_SERVER_URL"
-        value = var.enable_service_discovery ? "http://config-server.${var.discovery_namespace}:8888" : "http://localhost:8888"
+        value = "http://172.17.0.1:8888"
       },
       {
         name  = "EUREKA_CLIENT_ENABLED"
@@ -90,16 +91,6 @@ resource "aws_ecs_service" "service" {
   task_definition = aws_ecs_task_definition.service.arn
   desired_count   = var.desired_count
   launch_type     = "EC2"
-
-  # Service Discovery (only for SIT/PROD with multiple EC2s)
-  dynamic "service_registries" {
-    for_each = var.enable_service_discovery ? [1] : []
-    content {
-      registry_arn   = var.service_discovery_arn
-      container_name = var.service_name
-      container_port = var.container_port
-    }
-  }
 
   # ALB (only for api-gateway)
   dynamic "load_balancer" {

@@ -66,3 +66,25 @@ variable "enable_service_discovery" {
   type        = bool
   default     = false  # DEV uses localhost
 }
+
+#############################
+# EC2 Auto Scaling
+#############################
+
+variable "ec2_min_size" {
+  description = "Minimum number of EC2 instances"
+  type        = number
+  default     = 1
+}
+
+variable "ec2_max_size" {
+  description = "Maximum number of EC2 instances"
+  type        = number
+  default     = 1
+}
+
+variable "ec2_desired_capacity" {
+  description = "Desired number of EC2 instances"
+  type        = number
+  default     = 1
+}

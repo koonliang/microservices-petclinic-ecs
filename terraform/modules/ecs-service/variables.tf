@@ -105,3 +105,17 @@ variable "discovery_namespace" {
   type        = string
   default     = "petclinic.local"
 }
+
+#############################
+# Network (for awsvpc mode)
+#############################
+
+variable "subnet_ids" {
+  description = "Subnet IDs for awsvpc network mode"
+  type        = list(string)
+}
+
+variable "security_group_id" {
+  description = "Security group ID for ECS tasks"
+  type        = string
+}

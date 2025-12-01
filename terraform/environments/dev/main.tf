@@ -24,36 +24,36 @@ provider "aws" {
 locals {
   services = {
     "config-server" = {
-      cpu                = 128
-      memory_reservation = 200
+      cpu                = 256
+      memory_reservation = 384
       port               = 8888
       desired_count      = 1
       enable_alb         = false
     }
     "api-gateway" = {
-      cpu                = 128
-      memory_reservation = 200
+      cpu                = 256
+      memory_reservation = 384
       port               = 8080
       desired_count      = 1
       enable_alb         = true
     }
     "customers-service" = {
-      cpu                = 128
-      memory_reservation = 150
+      cpu                = 256
+      memory_reservation = 300
       port               = 8081
       desired_count      = 1
       enable_alb         = false
     }
     "visits-service" = {
-      cpu                = 128
-      memory_reservation = 150
+      cpu                = 256
+      memory_reservation = 300
       port               = 8082
       desired_count      = 1
       enable_alb         = false
     }
     "vets-service" = {
-      cpu                = 128
-      memory_reservation = 150
+      cpu                = 256
+      memory_reservation = 300
       port               = 8083
       desired_count      = 1
       enable_alb         = false
@@ -110,6 +110,11 @@ module "ecs_cluster" {
   private_subnet_ids    = module.networking.private_subnet_ids
   ecs_security_group_id = module.networking.ecs_security_group_id
   enable_rds            = var.enable_rds
+
+  # EC2 Auto Scaling
+  min_size         = var.ec2_min_size
+  max_size         = var.ec2_max_size
+  desired_capacity = var.ec2_desired_capacity
 }
 
 #############################
@@ -164,11 +169,15 @@ module "ecs_services" {
   container_port     = each.value.port
   desired_count      = each.value.desired_count
 
+  # Network configuration for awsvpc mode
+  subnet_ids        = module.networking.private_subnet_ids
+  security_group_id = module.networking.ecs_security_group_id
+
   # ALB (only for api-gateway)
   enable_alb       = each.value.enable_alb
   target_group_arn = module.alb.target_group_arn
 
-  # Service Discovery (disabled for DEV - uses localhost)
+  # Service Discovery
   enable_service_discovery = var.enable_service_discovery
   service_discovery_arn    = var.enable_service_discovery ? module.service_discovery[0].service_arns[each.key] : ""
   discovery_namespace      = "petclinic.local"
