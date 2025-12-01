@@ -18,7 +18,12 @@ resource "aws_ecs_task_definition" "service" {
     environment = concat([
       {
         name  = "SPRING_PROFILES_ACTIVE"
-        value = var.enable_rds ? "docker,aws,mysql" : "docker,aws"
+        # config-server needs 'native' profile to use classpath config instead of Git
+        value = var.service_name == "config-server" ? (
+          var.enable_rds ? "native,docker,aws,mysql" : "native,docker,aws"
+        ) : (
+          var.enable_rds ? "docker,aws,mysql" : "docker,aws"
+        )
       },
       {
         # Use Cloud Map DNS for multi-EC2, localhost for single-EC2

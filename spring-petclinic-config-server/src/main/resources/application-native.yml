@@ -1,0 +1,7 @@
+# Native profile - uses config files from classpath instead of Git
+spring:
+  cloud:
+    config:
+      server:
+        native:
+          searchLocations: classpath:/
