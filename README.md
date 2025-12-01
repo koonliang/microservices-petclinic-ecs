@@ -1,218 +1,242 @@
-# Distributed version of the Spring PetClinic Sample Application built with Spring Cloud and Deployed on ECS
+# AWS ECS Infrastructure with Spring PetClinic
 
-[![Build Status](https://github.com/spring-petclinic/spring-petclinic-microservices/actions/workflows/maven-build.yml/badge.svg)](https://github.com/spring-petclinic/spring-petclinic-microservices/actions/workflows/maven-build.yml)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+A production-ready Terraform infrastructure for deploying microservices to AWS ECS. Uses the Spring PetClinic application as a reference implementation.
 
-This microservices branch was a fork from https://github.com/spring-petclinic/spring-petclinic-microservices.
+## Overview
 
-## Starting services locally without Docker
+This project demonstrates how to deploy a microservices architecture to AWS ECS using Terraform, with a focus on:
 
-Every microservice is a Spring Boot application and can be started locally using IDE ([Lombok](https://projectlombok.org/) plugin has to be set up) or `../mvnw spring-boot:run` command. Please note that supporting services (Config and Discovery Server) must be started before any other application (Customers, Vets, Visits and API).
-Startup of Tracing server, Admin server, Grafana and Prometheus is optional.
-If everything goes well, you can access the following services at given location:
-* Discovery Server - http://localhost:8761
-* Config Server - http://localhost:8888
-* AngularJS frontend (API Gateway) - http://localhost:8080
-* Customers, Vets and Visits Services - random port, check Eureka Dashboard 
-* Tracing Server (Zipkin) - http://localhost:9411/zipkin/ (we use [openzipkin](https://github.com/openzipkin/zipkin/tree/main/zipkin-server))
-* Admin Server (Spring Boot Admin) - http://localhost:9090
-* Grafana Dashboards - http://localhost:3000
-* Prometheus - http://localhost:9091
+- **Cost optimization** — Uses EC2 launch type (Free Tier eligible) with VPC Endpoints instead of NAT Gateway
+- **Security** — Private subnets for ECS tasks, ALB in public subnets
+- **Service discovery** — AWS Cloud Map for inter-service communication
+- **Infrastructure as Code** — Modular Terraform structure for reusability
 
-You can tell Config Server to use your local Git repository by using `native` Spring profile and setting
-`GIT_REPO` environment variable, for example:
-`-Dspring.profiles.active=native -DGIT_REPO=/projects/spring-petclinic-microservices-config`
+The Spring PetClinic microservices application serves as the workload, but the infrastructure patterns apply to any containerized application.
 
-## Starting services locally with docker-compose
-In order to start entire infrastructure using Docker, you have to build images by executing
-``bash
+## Architecture
+
+```
+                            ┌─────────────────────────────────────────────────────────────┐
+                            │                         VPC                                 │
+                            │                                                             │
+    Internet ──► IGW ──────►│  ┌──────────────────┐      ┌──────────────────────────┐    │
+                            │  │  Public Subnets  │      │     Private Subnets      │    │
+                            │  │                  │      │                          │    │
+                            │  │  ┌───────────┐   │      │   ┌──────────────────┐   │    │
+                            │  │  │    ALB    │───┼──────┼──►│   EC2 (ECS)      │   │    │
+                            │  │  └───────────┘   │      │   │                  │   │    │
+                            │  │                  │      │   │  ┌────────────┐  │   │    │
+                            │  └──────────────────┘      │   │  │api-gateway │  │   │    │
+                            │                            │   │  │config-srvr │  │   │    │
+                            │                            │   │  │customers   │  │   │    │
+                            │  ┌──────────────────────┐  │   │  │visits      │  │   │    │
+                            │  │    VPC Endpoints     │  │   │  │vets        │  │   │    │
+                            │  │  (ECR, ECS, Logs)    │◄─┼───┤  └────────────┘  │   │    │
+                            │  └──────────────────────┘  │   └──────────────────────┘    │
+                            │                            │              │                 │
+                            │                            │              ▼                 │
+                            │                            │      ┌──────────────┐         │
+                            │                            │      │  Cloud Map   │         │
+                            │                            │      │  (DNS-based  │         │
+                            │                            │      │  discovery)  │         │
+                            │                            │      └──────────────┘         │
+                            └────────────────────────────┴────────────────────────────────┘
+```
+
+## Cost Breakdown
+
+| Component | Cost | Notes |
+|-----------|------|-------|
+| EC2 (t2.micro) | Free | 750 hrs/month free tier |
+| ALB | Free | 750 hrs/month free tier |
+| VPC Endpoints | ~$0.01/GB | No hourly cost, only data transfer |
+| ECR | Free | 500MB free storage |
+| CloudWatch Logs | Free | 5GB ingestion free |
+| RDS (optional) | ~$15/month | Disabled by default, uses in-memory DB |
+
+**Estimated cost for testing: < $1/month** (assuming free tier eligibility)
+
+## Project Structure
+
+```
+├── terraform/
+│   ├── environments/
+│   │   ├── dev/              # Development environment
+│   │   │   ├── main.tf
+│   │   │   ├── variables.tf
+│   │   │   ├── terraform.tfvars
+│   │   │   └── backend.tf
+│   │   └── sit/              # SIT environment (multi-EC2)
+│   │
+│   └── modules/
+│       ├── networking/       # VPC, subnets, VPC endpoints
+│       ├── ecs-cluster/      # ECS cluster, EC2 ASG, IAM
+│       ├── ecs-service/      # Task definitions, services
+│       ├── alb/              # Application Load Balancer
+│       ├── ecr/              # Container registries
+│       ├── service-discovery/# AWS Cloud Map
+│       └── rds/              # Optional MySQL database
+│
+├── docker/                   # Dockerfile for all services
+├── spring-petclinic-*/       # Microservice source code
+└── scripts/                  # Build and deployment scripts
+```
+
+## Quick Start
+
+### Prerequisites
+
+- AWS CLI configured with appropriate credentials
+- Terraform >= 1.0.0
+- Docker
+- Java 17 (for building the application)
+
+### 1. Build and Push Docker Images
+
+```bash
+# Build all services
 ./mvnw clean install -P buildDocker
-``
-This requires `Docker` or `Docker desktop` to be installed and running.
 
-Alternatively you can also build all the images on `Podman`, which requires Podman or Podman Desktop to be installed and running.
+# Login to ECR
+aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin <account-id>.dkr.ecr.ap-southeast-1.amazonaws.com
+
+# Tag and push images
+export REPOSITORY_PREFIX=<account-id>.dkr.ecr.ap-southeast-1.amazonaws.com/petclinic
+export VERSION=latest
+./scripts/tagImages.sh
+./scripts/pushImages.sh
+```
+
+### 2. Deploy Infrastructure
+
 ```bash
-./mvnw clean install -PbuildDocker -Dcontainer.executable=podman
+cd terraform/environments/dev
+
+# Initialize Terraform
+terraform init
+
+# Review the plan
+terraform plan
+
+# Apply
+terraform apply
 ```
-By default, the Docker OCI image is build for an `linux/amd64` platform.
-For other architectures, you could change it by using the `-Dcontainer.platform` maven command line argument.
-For instance, if you target container images for an Apple M2, you could use the command line with the `linux/arm64` architecture:
+
+### 3. Access the Application
+
+After deployment, Terraform outputs the ALB DNS name:
+
 ```bash
-./mvnw clean install -P buildDocker -Dcontainer.platform="linux/arm64"
+terraform output alb_dns_name
+# Example: petclinic-dev-alb-123456.ap-southeast-1.elb.amazonaws.com
 ```
 
-Once images are ready, you can start them with a single command
-`docker-compose up` or `podman-compose up`. 
+Open `http://<alb-dns-name>` in your browser.
 
-Containers startup order is coordinated with the `service_healthy` condition of the Docker Compose [depends-on](https://github.com/compose-spec/compose-spec/blob/main/spec.md#depends_on) expression 
-and the [healthcheck](https://github.com/compose-spec/compose-spec/blob/main/spec.md#healthcheck) of the service containers. 
-After starting services, it takes a while for API Gateway to be in sync with service registry,
-so don't be scared of initial Spring Cloud Gateway timeouts. You can track services availability using Eureka dashboard
-available by default at http://localhost:8761.
+## Configuration
 
-The `main` branch uses an Eclipse Temurin with Java 17 as Docker base image.
+### Environment Variables
 
-*NOTE: Under MacOSX or Windows, make sure that the Docker VM has enough memory to run the microservices. The default settings
-are usually not enough and make the `docker-compose up` painfully slow.*
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `project` | petclinic | Project name prefix |
+| `environment` | dev | Environment name |
+| `aws_region` | ap-southeast-1 | AWS region |
+| `instance_type` | t2.micro | EC2 instance type |
+| `image_tag` | latest | Docker image tag to deploy |
+| `enable_rds` | false | Enable RDS MySQL (default: in-memory HSQLDB) |
+| `enable_service_discovery` | false | Enable Cloud Map (for multi-EC2 setups) |
 
+### Deploying a New Image Version
 
-## Starting services locally with docker-compose and Java
-If you experience issues with running the system via docker-compose you can try running the `./scripts/run_all.sh` script that will start the infrastructure services via docker-compose and all the Java based applications via standard `nohup java -jar ...` command. The logs will be available under `${ROOT}/target/nameoftheapp.log`. 
-
-Each of the java based applications is started with the `chaos-monkey` profile in order to interact with Spring Boot Chaos Monkey. You can check out the (README)[scripts/chaos/README.md] for more information about how to use the `./scripts/chaos/call_chaos.sh` helper script to enable assaults.
-
-## Understanding the Spring Petclinic application
-
-[See the presentation of the Spring Petclinic Framework version](http://fr.slideshare.net/AntoineRey/spring-framework-petclinic-sample-application)
-
-[A blog post introducing the Spring Petclinic Microsevices](http://javaetmoi.com/2018/10/architecture-microservices-avec-spring-cloud/) (french language)
-
-You can then access petclinic here: http://localhost:8080/
-
-![Spring Petclinic Microservices screenshot](docs/application-screenshot.png)
-
-
-**Architecture diagram of the Spring Petclinic Microservices**
-
-![Spring Petclinic Microservices architecture](docs/microservices-architecture-diagram.jpg)
-
-
-## In case you find a bug/suggested improvement for Spring Petclinic Microservices
-
-Our issue tracker is available here: https://github.com/spring-petclinic/spring-petclinic-microservices/issues
-
-## Database configuration
-
-In its default configuration, Petclinic uses an in-memory database (HSQLDB) which gets populated at startup with data.
-A similar setup is provided for MySql in case a persistent database configuration is needed.
-Dependency for Connector/J, the MySQL JDBC driver is already included in the `pom.xml` files.
-
-### Start a MySql database
-
-You may start a MySql database with docker:
-
-```
-docker run -e MYSQL_ROOT_PASSWORD=petclinic -e MYSQL_DATABASE=petclinic -p 3306:3306 mysql:5.7.8
-```
-or download and install the MySQL database (e.g., MySQL Community Server 5.7 GA), which can be found here: https://dev.mysql.com/downloads/
-
-### Use the Spring 'mysql' profile
-
-To use a MySQL database, you have to start 3 microservices (`visits-service`, `customers-service` and `vets-services`)
-with the `mysql` Spring profile. Add the `--spring.profiles.active=mysql` as programm argument.
-
-By default, at startup, database schema will be created and data will be populated.
-You may also manually create the PetClinic database and data by executing the `"db/mysql/{schema,data}.sql"` scripts of each 3 microservices. 
-In the `application.yml` of the [Configuration repository], set the `initialization-mode` to `never`.
-
-If you are running the microservices with Docker, you have to add the `mysql` profile into the (Dockerfile)[docker/Dockerfile]:
-```
-ENV SPRING_PROFILES_ACTIVE docker,mysql
-```
-In the `mysql section` of the `application.yml` from the [Configuration repository], you have to change 
-the host and port of your MySQL JDBC connection string. 
-
-## Custom metrics monitoring
-
-Grafana and Prometheus are included in the `docker-compose.yml` configuration, and the public facing applications
-have been instrumented with [MicroMeter](https://micrometer.io) to collect JVM and custom business metrics.
-
-A JMeter load testing script is available to stress the application and generate metrics: [petclinic_test_plan.jmx](spring-petclinic-api-gateway/src/test/jmeter/petclinic_test_plan.jmx)
-
-![Grafana metrics dashboard](docs/grafana-custom-metrics-dashboard.png)
-
-### Using Prometheus
-
-* Prometheus can be accessed from your local machine at http://localhost:9091
-
-### Using Grafana with Prometheus
-
-* An anonymous access and a Prometheus datasource are setup.
-* A `Spring Petclinic Metrics` Dashboard is available at the URL http://localhost:3000/d/69JXeR0iw/spring-petclinic-metrics.
-You will find the JSON configuration file here: [docker/grafana/dashboards/grafana-petclinic-dashboard.json]().
-* You may create your own dashboard or import the [Micrometer/SpringBoot dashboard](https://grafana.com/dashboards/4701) via the Import Dashboard menu item.
-The id for this dashboard is `4701`.
-
-### Custom metrics
-Spring Boot registers a lot number of core metrics: JVM, CPU, Tomcat, Logback... 
-The Spring Boot auto-configuration enables the instrumentation of requests handled by Spring MVC.
-All those three REST controllers `OwnerResource`, `PetResource` and `VisitResource` have been instrumented by the `@Timed` Micrometer annotation at class level.
-
-* `customers-service` application has the following custom metrics enabled:
-  * @Timed: `petclinic.owner`
-  * @Timed: `petclinic.pet`
-* `visits-service` application has the following custom metrics enabled:
-  * @Timed: `petclinic.visit`
-
-## Looking for something in particular?
-
-| Spring Cloud components         | Resources  |
-|---------------------------------|------------|
-| Configuration server            | [Config server properties](spring-petclinic-config-server/src/main/resources/application.yml) and [Configuration repository] |
-| Service Discovery               | [Eureka server](spring-petclinic-discovery-server) and [Service discovery client](spring-petclinic-vets-service/src/main/java/org/springframework/samples/petclinic/vets/VetsServiceApplication.java) |
-| API Gateway                     | [Spring Cloud Gateway starter](spring-petclinic-api-gateway/pom.xml) and [Routing configuration](/spring-petclinic-api-gateway/src/main/resources/application.yml) |
-| Docker Compose                  | [Spring Boot with Docker guide](https://spring.io/guides/gs/spring-boot-docker/) and [docker-compose file](docker-compose.yml) |
-| Circuit Breaker                 | [Resilience4j fallback method](spring-petclinic-api-gateway/src/main/java/org/springframework/samples/petclinic/api/boundary/web/ApiGatewayController.java)  |
-| Grafana / Prometheus Monitoring | [Micrometer implementation](https://micrometer.io/), [Spring Boot Actuator Production Ready Metrics] |
-
-|  Front-end module | Files |
-|-------------------|-------|
-| Node and NPM      | [The frontend-maven-plugin plugin downloads/installs Node and NPM locally then runs Bower and Gulp](spring-petclinic-ui/pom.xml)  |
-| Bower             | [JavaScript libraries are defined by the manifest file bower.json](spring-petclinic-ui/bower.json)  |
-| Gulp              | [Tasks automated by Gulp: minify CSS and JS, generate CSS from LESS, copy other static resources](spring-petclinic-ui/gulpfile.js)  |
-| Angular JS        | [app.js, controllers and templates](spring-petclinic-ui/src/scripts/)  |
-
-## Pushing to a Docker registry
-
-Docker images for `linux/amd64` and `linux/arm64` platforms have been published into DockerHub 
-in the [springcommunity](https://hub.docker.com/u/springcommunity) organization.
-You can pull an image:
 ```bash
-docker pull springcommunity/spring-petclinic-config-server
+# Option 1: Update terraform.tfvars
+image_tag = "v1.2.3"
+
+# Option 2: Pass at apply time
+terraform apply -var="image_tag=v1.2.3"
 ```
-You may prefer to build then push images to your own Docker registry.
 
-### Choose your Docker registry
+## Environments
 
-You need to define your target Docker registry.
-Make sure you're already logged in by running `docker login <endpoint>` or `docker login` if you're just targeting Docker hub.
+### DEV (Single EC2)
+- All services on one t2.micro instance
+- Services communicate via localhost
+- Cloud Map disabled
+- Suitable for development and testing
 
-Setup the `REPOSITORY_PREFIX` env variable to target your Docker registry.
-If you're targeting Docker hub, simple provide your username, for example:
+### SIT (Multi-EC2)
+- Services distributed across multiple instances
+- Cloud Map enabled for DNS-based service discovery
+- More realistic production-like setup
+
+## Key Design Decisions
+
+### VPC Endpoints vs NAT Gateway
+
+We use VPC Endpoints instead of NAT Gateway to minimize costs:
+
+| Approach | Hourly Cost | Use Case |
+|----------|-------------|----------|
+| VPC Endpoints | $0 (pay per GB) | Short-lived test environments |
+| NAT Gateway | $0.045/hr | Long-running production |
+
+### Service Discovery
+
+- **DEV**: Services use `localhost` (single EC2)
+- **SIT/PROD**: AWS Cloud Map provides DNS names like `vets-service.petclinic.local`
+
+The API Gateway uses Spring Cloud Config to switch between these modes based on the `aws` profile.
+
+### ECS Launch Type
+
+EC2 launch type chosen over Fargate for:
+- Free tier eligibility
+- Better cost control for learning/testing
+- More visibility into the underlying infrastructure
+
+## Terraform Modules
+
+| Module | Purpose |
+|--------|---------|
+| `networking` | VPC, subnets, security groups, VPC endpoints |
+| `ecs-cluster` | ECS cluster, EC2 ASG, IAM roles |
+| `ecs-service` | Task definitions, ECS services, CloudWatch logs |
+| `alb` | Application Load Balancer, target groups |
+| `ecr` | Container registries with lifecycle policies |
+| `service-discovery` | AWS Cloud Map namespace and services |
+| `rds` | Optional RDS MySQL instance |
+
+## Cleanup
+
 ```bash
-export REPOSITORY_PREFIX=springcommunity
+# Destroy all resources
+terraform destroy
+
+# If ECR has images, delete them first
+aws ecr batch-delete-image --repository-name petclinic/api-gateway --image-ids imageTag=latest
 ```
 
-For other Docker registries, provide the full URL to your repository, for example:
+## Troubleshooting
+
+### Services not starting
+Check CloudWatch Logs:
 ```bash
-export REPOSITORY_PREFIX=harbor.myregistry.com/petclinic
+aws logs tail /ecs/petclinic/api-gateway --follow
 ```
 
-To push Docker image for the `linux/amd64` and the `linux/arm64` platform to your own registry, please use the command line:
-```bash
-mvn clean install -Dmaven.test.skip -P buildDocker -Ddocker.image.prefix=${REPOSITORY_PREFIX} -Dcontainer.build.extraarg="--push" -Dcontainer.platform="linux/amd64,linux/arm64"
-```
+### Container health checks failing
+Services need 2-3 minutes to start. Check the ECS console for task status.
 
-The `scripts/pushImages.sh` and `scripts/tagImages.sh` shell scripts could also be used once you build your image with the `buildDocker` maven profile.
-The `scripts/tagImages.sh` requires to declare the `VERSION` env variable.
+### Cannot pull images from ECR
+Ensure VPC Endpoints for `ecr.api` and `ecr.dkr` are created and security groups allow HTTPS traffic.
 
-## Interesting Spring Petclinic forks
+## References
 
-The Spring Petclinic `main` branch in the main [spring-projects](https://github.com/spring-projects/spring-petclinic)
-GitHub org is the "canonical" implementation, currently based on Spring Boot and Thymeleaf.
+- [Spring PetClinic Microservices](https://github.com/spring-petclinic/spring-petclinic-microservices) — Original application
+- [AWS ECS Documentation](https://docs.aws.amazon.com/ecs/)
+- [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 
-This [spring-petclinic-microservices](https://github.com/spring-petclinic/spring-petclinic-microservices/) project is one of the [several forks](https://spring-petclinic.github.io/docs/forks.html) 
-hosted in a special GitHub org: [spring-petclinic](https://github.com/spring-petclinic).
-If you have a special interest in a different technology stack
-that could be used to implement the Pet Clinic then please join the community there.
+## License
 
-
-## Contributing
-
-The [issue tracker](https://github.com/spring-petclinic/spring-petclinic-microservices/issues) is the preferred channel for bug reports, features requests and submitting pull requests.
-
-For pull requests, editor preferences are available in the [editor config](.editorconfig) for easy use in common text editors. Read more and download plugins at <http://editorconfig.org>.
-
-
-[Configuration repository]: https://github.com/spring-petclinic/spring-petclinic-microservices-config
-[Spring Boot Actuator Production Ready Metrics]: https://docs.spring.io/spring-boot/docs/current/reference/html/production-ready-metrics.html
+This project is licensed under the Apache License 2.0.
