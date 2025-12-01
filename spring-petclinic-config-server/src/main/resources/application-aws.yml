@@ -1,0 +1,24 @@
+# AWS Cloud Map configuration - disables Eureka
+spring:
+  cloud:
+    discovery:
+      enabled: false
+    loadbalancer:
+      enabled: false
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
