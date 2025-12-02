@@ -28,7 +28,7 @@ resource "aws_lb_target_group" "api_gateway" {
   port        = 8080
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
-  target_type = "instance"  # For bridge network mode
+  target_type = "ip"  # Required for awsvpc network mode
 
   health_check {
     enabled             = true

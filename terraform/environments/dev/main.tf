@@ -174,8 +174,8 @@ module "ecs_services" {
   container_port     = each.value.port
   desired_count      = each.value.desired_count
 
-  # Network configuration for awsvpc mode
-  subnet_ids        = module.networking.private_subnet_ids
+  # Network configuration for awsvpc mode (use public subnets for DEV)
+  subnet_ids        = module.networking.public_subnet_ids
   security_group_id = module.networking.ecs_security_group_id
 
   # ALB (only for api-gateway)

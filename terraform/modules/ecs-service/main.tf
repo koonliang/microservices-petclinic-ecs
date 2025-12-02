@@ -1,6 +1,6 @@
 resource "aws_ecs_task_definition" "service" {
   family                   = "${var.project}-${var.service_name}"
-  network_mode             = "bridge"
+  network_mode             = "awsvpc"
   requires_compatibilities = ["EC2"]
   execution_role_arn       = var.execution_role_arn
   task_role_arn            = var.task_role_arn
@@ -11,7 +11,6 @@ resource "aws_ecs_task_definition" "service" {
 
     portMappings = [{
       containerPort = var.container_port
-      hostPort      = var.container_port
       protocol      = "tcp"
     }]
 
@@ -26,10 +25,9 @@ resource "aws_ecs_task_definition" "service" {
         )
       },
       {
-        # Use Docker bridge gateway to reach other containers on same host
-        # 172.17.0.1 is the default Docker bridge gateway IP
+        # Config server URL - use service discovery DNS if enabled, otherwise Docker bridge
         name  = "CONFIG_SERVER_URL"
-        value = "http://172.17.0.1:8888"
+        value = var.enable_service_discovery ? "http://config-server.${var.discovery_namespace}:8888" : "http://172.17.0.1:8888"
       },
       {
         name  = "EUREKA_CLIENT_ENABLED"
@@ -92,6 +90,12 @@ resource "aws_ecs_service" "service" {
   desired_count   = var.desired_count
   launch_type     = "EC2"
 
+  # Network configuration required for awsvpc mode
+  network_configuration {
+    subnets         = var.subnet_ids
+    security_groups = [var.security_group_id]
+  }
+
   # ALB (only for api-gateway)
   dynamic "load_balancer" {
     for_each = var.enable_alb ? [1] : []
@@ -102,13 +106,11 @@ resource "aws_ecs_service" "service" {
     }
   }
 
-  # Service Discovery (Cloud Map)
+  # Service Discovery (Cloud Map) - A records for awsvpc mode
   dynamic "service_registries" {
     for_each = var.enable_service_discovery ? [1] : []
     content {
-      registry_arn   = var.service_discovery_arn
-      container_name = var.service_name
-      container_port = var.container_port
+      registry_arn = var.service_discovery_arn
     }
   }
 

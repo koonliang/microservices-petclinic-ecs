@@ -18,7 +18,7 @@ resource "aws_service_discovery_service" "services" {
 
     dns_records {
       ttl  = 10
-      type = "A"  # A record - requires static host ports in task definition
+      type = "A"  # A record - works with awsvpc network mode
     }
 
     routing_policy = "MULTIVALUE"
