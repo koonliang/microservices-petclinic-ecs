@@ -72,6 +72,10 @@ module "networking" {
   aws_region         = var.aws_region
   vpc_cidr           = var.vpc_cidr
   availability_zones = var.availability_zones
+
+  # Cost optimization: No VPC endpoints, no NAT - use public subnets for ECS
+  enable_vpc_endpoints = false
+  enable_nat_gateway   = false
 }
 
 #############################
@@ -85,10 +89,9 @@ module "ecr" {
 }
 
 #############################
-# Service Discovery (only if enabled)
+# Service Discovery (enabled for multi-EC2)
 #############################
 module "service_discovery" {
-  count  = var.enable_service_discovery ? 1 : 0
   source = "../../modules/service-discovery"
 
   project       = var.project
@@ -108,6 +111,8 @@ module "ecs_cluster" {
   aws_region            = var.aws_region
   instance_type         = var.instance_type
   private_subnet_ids    = module.networking.private_subnet_ids
+  public_subnet_ids     = module.networking.public_subnet_ids
+  use_public_subnets    = true  # DEV: Use public subnets to avoid VPC endpoint costs
   ecs_security_group_id = module.networking.ecs_security_group_id
   enable_rds            = var.enable_rds
 
@@ -179,7 +184,7 @@ module "ecs_services" {
 
   # Service Discovery
   enable_service_discovery = var.enable_service_discovery
-  service_discovery_arn    = var.enable_service_discovery ? module.service_discovery[0].service_arns[each.key] : ""
+  service_discovery_arn    = module.service_discovery.service_arns[each.key]
   discovery_namespace      = "petclinic.local"
 
   # RDS (optional)

@@ -102,6 +102,16 @@ resource "aws_ecs_service" "service" {
     }
   }
 
+  # Service Discovery (Cloud Map)
+  dynamic "service_registries" {
+    for_each = var.enable_service_discovery ? [1] : []
+    content {
+      registry_arn   = var.service_discovery_arn
+      container_name = var.service_name
+      container_port = var.container_port
+    }
+  }
+
   deployment_circuit_breaker {
     enable   = true
     rollback = true

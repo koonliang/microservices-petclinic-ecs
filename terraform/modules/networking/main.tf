@@ -78,7 +78,7 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# Private route table (no internet route - uses VPC endpoints)
+# Private route table (routes via NAT Gateway if enabled, otherwise no internet)
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
@@ -87,8 +87,41 @@ resource "aws_route_table" "private" {
   }
 }
 
+# NAT Gateway route (only if NAT is enabled)
+resource "aws_route" "private_nat" {
+  count                  = var.enable_nat_gateway ? 1 : 0
+  route_table_id         = aws_route_table.private.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.main[0].id
+}
+
 resource "aws_route_table_association" "private" {
   count          = length(aws_subnet.private)
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id
+}
+
+#############################
+# NAT Gateway (Optional - for private subnet internet access)
+#############################
+
+resource "aws_eip" "nat" {
+  count  = var.enable_nat_gateway ? 1 : 0
+  domain = "vpc"
+
+  tags = {
+    Name = "${var.project}-${var.environment}-nat-eip"
+  }
+}
+
+resource "aws_nat_gateway" "main" {
+  count         = var.enable_nat_gateway ? 1 : 0
+  allocation_id = aws_eip.nat[0].id
+  subnet_id     = aws_subnet.public[0].id
+
+  tags = {
+    Name = "${var.project}-${var.environment}-nat"
+  }
+
+  depends_on = [aws_internet_gateway.main]
 }

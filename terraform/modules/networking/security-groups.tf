@@ -71,31 +71,13 @@ resource "aws_security_group" "ecs" {
     self        = true
   }
 
-  # Egress to VPC endpoints (HTTPS)
+  # Allow all outbound traffic (for public subnets or NAT gateway access to AWS services)
   egress {
-    description     = "HTTPS to VPC Endpoints"
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    security_groups = [aws_security_group.vpc_endpoints.id]
-  }
-
-  # Egress to S3 (via gateway endpoint)
-  egress {
-    description     = "S3 via Gateway Endpoint"
-    from_port       = 443
-    to_port         = 443
-    protocol        = "tcp"
-    prefix_list_ids = [aws_vpc_endpoint.s3.prefix_list_id]
-  }
-
-  # Allow internal communication within VPC
-  egress {
-    description = "Internal VPC traffic"
+    description = "All outbound traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = [var.vpc_cidr]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = {

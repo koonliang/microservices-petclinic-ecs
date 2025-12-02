@@ -64,7 +64,7 @@ variable "db_password" {
 variable "enable_service_discovery" {
   description = "Enable Cloud Map service discovery (for multi-EC2 environments like SIT/PROD)"
   type        = bool
-  default     = false  # DEV uses localhost
+  default     = true  # DEV now uses multiple EC2 instances
 }
 
 #############################

@@ -73,6 +73,10 @@ module "networking" {
   aws_region         = var.aws_region
   vpc_cidr           = var.vpc_cidr
   availability_zones = var.availability_zones
+
+  # Cost optimization: No VPC endpoints, use NAT Gateway for private subnet internet access
+  enable_vpc_endpoints = false
+  enable_nat_gateway   = true
 }
 
 #############################
@@ -108,6 +112,8 @@ module "ecs_cluster" {
   aws_region            = var.aws_region
   instance_type         = var.instance_type
   private_subnet_ids    = module.networking.private_subnet_ids
+  public_subnet_ids     = module.networking.public_subnet_ids
+  use_public_subnets    = false  # SIT: Use private subnets with NAT Gateway
   ecs_security_group_id = module.networking.ecs_security_group_id
   enable_rds            = var.enable_rds
   
@@ -177,6 +183,10 @@ module "ecs_services" {
   enable_service_discovery = true
   service_discovery_arn    = module.service_discovery.service_arns[each.key]
   discovery_namespace      = "petclinic.local"
+
+  # Network configuration for awsvpc mode (not used with bridge mode, but required)
+  subnet_ids        = module.networking.private_subnet_ids
+  security_group_id = module.networking.ecs_security_group_id
 
   # RDS (optional)
   enable_rds    = var.enable_rds

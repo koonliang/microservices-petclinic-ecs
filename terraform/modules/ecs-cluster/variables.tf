@@ -16,7 +16,20 @@ variable "instance_type" {
 }
 
 variable "private_subnet_ids" {
-  type = list(string)
+  description = "Private subnet IDs for ECS instances"
+  type        = list(string)
+}
+
+variable "public_subnet_ids" {
+  description = "Public subnet IDs for ECS instances (used when use_public_subnets = true)"
+  type        = list(string)
+  default     = []
+}
+
+variable "use_public_subnets" {
+  description = "Deploy ECS instances in public subnets with public IPs (for dev - no NAT/VPC endpoints needed)"
+  type        = bool
+  default     = false
 }
 
 variable "ecs_security_group_id" {

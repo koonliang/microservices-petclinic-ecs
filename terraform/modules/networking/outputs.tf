@@ -19,5 +19,5 @@ output "ecs_security_group_id" {
 }
 
 output "vpc_endpoints_security_group_id" {
-  value = aws_security_group.vpc_endpoints.id
+  value = var.enable_vpc_endpoints ? aws_security_group.vpc_endpoints[0].id : ""
 }

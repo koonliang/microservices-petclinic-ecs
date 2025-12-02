@@ -38,9 +38,9 @@ resource "aws_launch_template" "ecs" {
     name = aws_iam_instance_profile.ecs.name
   }
 
-  # NO public IP - private subnet with VPC endpoints
+  # Public IP if using public subnets (dev), no public IP for private subnets (sit/prod)
   network_interfaces {
-    associate_public_ip_address = false
+    associate_public_ip_address = var.use_public_subnets
     security_groups             = [var.ecs_security_group_id]
   }
 
@@ -69,7 +69,7 @@ resource "aws_launch_template" "ecs" {
 
 resource "aws_autoscaling_group" "ecs" {
   name                = "${var.project}-${var.environment}-ecs-asg"
-  vpc_zone_identifier = var.private_subnet_ids # Private subnets
+  vpc_zone_identifier = var.use_public_subnets ? var.public_subnet_ids : var.private_subnet_ids
   min_size            = var.min_size
   max_size            = var.max_size
   desired_capacity    = var.desired_capacity

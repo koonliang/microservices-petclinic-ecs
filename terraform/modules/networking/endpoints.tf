@@ -3,6 +3,7 @@
 #############################
 
 resource "aws_security_group" "vpc_endpoints" {
+  count       = var.enable_vpc_endpoints ? 1 : 0
   name        = "${var.project}-${var.environment}-vpce-sg"
   description = "Security group for VPC Endpoints"
   vpc_id      = aws_vpc.main.id
@@ -32,6 +33,7 @@ resource "aws_security_group" "vpc_endpoints" {
 #############################
 
 resource "aws_vpc_endpoint" "s3" {
+  count             = var.enable_vpc_endpoints ? 1 : 0
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${var.aws_region}.s3"
   vpc_endpoint_type = "Gateway"
@@ -43,11 +45,11 @@ resource "aws_vpc_endpoint" "s3" {
 }
 
 #############################
-# Interface Endpoints ($0.01/GB)
+# Interface Endpoints (EXPENSIVE - ~$7.20/day per endpoint per AZ)
 #############################
 
 locals {
-  interface_endpoints = [
+  interface_endpoints = var.enable_vpc_endpoints ? [
     "ecr.api",       # ECR API calls
     "ecr.dkr",       # Docker image pulls
     "ecs",           # ECS service API
@@ -57,7 +59,7 @@ locals {
     "ssm",           # SSM Session Manager
     "ssmmessages",   # SSM Session Manager messages
     "ec2messages",   # SSM Agent messages
-  ]
+  ] : []
 }
 
 resource "aws_vpc_endpoint" "interface" {
@@ -67,7 +69,7 @@ resource "aws_vpc_endpoint" "interface" {
   service_name        = "com.amazonaws.${var.aws_region}.${each.key}"
   vpc_endpoint_type   = "Interface"
   subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  security_group_ids  = [aws_security_group.vpc_endpoints[0].id]
   private_dns_enabled = true
 
   tags = {
