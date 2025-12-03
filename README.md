@@ -78,6 +78,13 @@ The Spring PetClinic microservices application serves as the workload, but the i
 
 ```
 ├── terraform/
+│   ├── shared/               # Long-lived shared infrastructure
+│   │   └── ecr/              # ECR repositories (persistent across env destroys)
+│   │       ├── main.tf
+│   │       ├── variables.tf
+│   │       ├── outputs.tf
+│   │       └── backend.tf
+│   │
 │   ├── environments/
 │   │   ├── dev/              # Development environment
 │   │   │   ├── main.tf       # Main configuration
@@ -91,7 +98,6 @@ The Spring PetClinic microservices application serves as the workload, but the i
 │       ├── ecs-cluster/      # ECS cluster, EC2 ASG, IAM
 │       ├── ecs-service/      # Task definitions, services
 │       ├── alb/              # Application Load Balancer
-│       ├── ecr/              # Container registries
 │       ├── service-discovery/# AWS Cloud Map
 │       └── rds/              # Optional MySQL database
 │
@@ -198,7 +204,7 @@ The CD pipeline is triggered manually via GitHub Actions workflow dispatch.
 |--------|-------------|
 | `deploy` | Direct ECS update - builds images, pushes to ECR, updates ECS task definitions |
 | `terraform-apply` | Full Terraform apply - builds images, pushes to ECR, runs `terraform apply` |
-| `terraform-destroy` | Destroys all infrastructure - requires typing environment name to confirm |
+| `terraform-destroy` | Destroys environment infrastructure (ECR repos are preserved) |
 
 #### How to Deploy
 
@@ -206,6 +212,30 @@ The CD pipeline is triggered manually via GitHub Actions workflow dispatch.
 2. Click **Run workflow**
 3. Select environment and action
 4. Click **Run workflow**
+
+### Shared Infrastructure (Manual)
+
+Manages long-lived shared resources like ECR repositories that persist across environment destroys.
+
+**Workflow**: `.github/workflows/shared-infra.yml`
+
+#### Inputs
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `component` | choice | `ecr` | Shared component to manage |
+| `action` | choice | `plan` | Terraform action (`plan`, `apply`, `destroy`) |
+| `confirm_destroy` | string | *(empty)* | Type component name to confirm destroy |
+
+#### Initial Setup
+
+Before deploying any environment, you must first create the shared ECR repositories:
+
+1. Go to **Actions** → **Manage Shared Infrastructure**
+2. Select `component: ecr` and `action: apply`
+3. Click **Run workflow**
+
+This only needs to be done once. ECR repositories will persist even when environments are destroyed.
 
 #### Deployment Flow
 

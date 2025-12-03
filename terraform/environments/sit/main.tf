@@ -80,13 +80,15 @@ module "networking" {
 }
 
 #############################
-# ECR Repositories
+# ECR Repositories (from shared state)
 #############################
-module "ecr" {
-  source = "../../modules/ecr"
-
-  project  = var.project
-  services = keys(local.services)
+data "terraform_remote_state" "ecr" {
+  backend = "s3"
+  config = {
+    bucket = "petclinic-tfstate-309779120361"
+    key    = "shared/ecr/terraform.tfstate"
+    region = "ap-southeast-1"
+  }
 }
 
 #############################
@@ -167,7 +169,7 @@ module "ecs_services" {
   execution_role_arn = module.ecs_cluster.execution_role_arn
   task_role_arn      = module.ecs_cluster.task_role_arn
 
-  ecr_repository_url = module.ecr.repository_urls[each.key]
+  ecr_repository_url = data.terraform_remote_state.ecr.outputs.repository_urls[each.key]
   image_tag          = var.image_tag
 
   cpu                = each.value.cpu
