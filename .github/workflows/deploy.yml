@@ -25,6 +25,10 @@ on:
         required: false
         type: string
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
   IMAGE_TAG: ${{ github.sha }}
