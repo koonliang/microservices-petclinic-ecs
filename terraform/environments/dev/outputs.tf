@@ -10,7 +10,7 @@ output "alb_dns_name" {
 
 output "ecr_repository_urls" {
   description = "ECR repository URLs"
-  value       = module.ecr.repository_urls
+  value       = data.terraform_remote_state.ecr.outputs.repository_urls
 }
 
 output "ecs_cluster_name" {
