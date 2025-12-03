@@ -16,6 +16,7 @@
 package org.springframework.samples.petclinic.api.application;
 
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,7 @@ import static java.util.stream.Collectors.joining;
 @RequiredArgsConstructor
 public class VisitsServiceClient {
 
+    @Setter
     @Value("${visits-service.url:http://visits-service}")
     private String hostname;
 

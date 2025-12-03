@@ -6,9 +6,9 @@ A production-ready Terraform infrastructure for deploying microservices to AWS E
 
 This project demonstrates how to deploy a microservices architecture to AWS ECS using Terraform, with a focus on:
 
-- **Cost optimization** — Uses EC2 launch type (Free Tier eligible) with VPC Endpoints instead of NAT Gateway
-- **Security** — Private subnets for ECS tasks, ALB in public subnets
-- **Service discovery** — AWS Cloud Map for inter-service communication
+- **Cost optimization** — Uses EC2 launch type (Free Tier eligible), public subnets to avoid NAT/VPC endpoint costs
+- **Service discovery** — AWS Cloud Map for DNS-based inter-service communication
+- **Flexible networking** — AWSVPC network mode for per-task ENI and security group control
 - **Infrastructure as Code** — Modular Terraform structure for reusability
 
 The Spring PetClinic microservices application serves as the workload, but the infrastructure patterns apply to any containerized application.
@@ -16,45 +16,63 @@ The Spring PetClinic microservices application serves as the workload, but the i
 ## Architecture
 
 ```
-                            ┌─────────────────────────────────────────────────────────────┐
-                            │                         VPC                                 │
-                            │                                                             │
-    Internet ──► IGW ──────►│  ┌──────────────────┐      ┌──────────────────────────┐    │
-                            │  │  Public Subnets  │      │     Private Subnets      │    │
-                            │  │                  │      │                          │    │
-                            │  │  ┌───────────┐   │      │   ┌──────────────────┐   │    │
-                            │  │  │    ALB    │───┼──────┼──►│   EC2 (ECS)      │   │    │
-                            │  │  └───────────┘   │      │   │                  │   │    │
-                            │  │                  │      │   │  ┌────────────┐  │   │    │
-                            │  └──────────────────┘      │   │  │api-gateway │  │   │    │
-                            │                            │   │  │config-srvr │  │   │    │
-                            │                            │   │  │customers   │  │   │    │
-                            │  ┌──────────────────────┐  │   │  │visits      │  │   │    │
-                            │  │    VPC Endpoints     │  │   │  │vets        │  │   │    │
-                            │  │  (ECR, ECS, Logs)    │◄─┼───┤  └────────────┘  │   │    │
-                            │  └──────────────────────┘  │   └──────────────────────┘    │
-                            │                            │              │                 │
-                            │                            │              ▼                 │
-                            │                            │      ┌──────────────┐         │
-                            │                            │      │  Cloud Map   │         │
-                            │                            │      │  (DNS-based  │         │
-                            │                            │      │  discovery)  │         │
-                            │                            │      └──────────────┘         │
-                            └────────────────────────────┴────────────────────────────────┘
+                                    ┌─────────────────────────────────────────────────────────┐
+                                    │                         VPC                             │
+                                    │                                                         │
+         Internet ──► IGW ─────────►│  ┌────────────────────────────────────────────────┐    │
+                                    │  │              Public Subnets                     │    │
+                                    │  │                                                 │    │
+                                    │  │  ┌───────────┐                                  │    │
+                                    │  │  │    ALB    │                                  │    │
+                                    │  │  └─────┬─────┘                                  │    │
+                                    │  │        │                                        │    │
+                                    │  │        ▼                                        │    │
+                                    │  │  ┌──────────────────────────────────────────┐  │    │
+                                    │  │  │           EC2 Instances (ECS)            │  │    │
+                                    │  │  │                                          │  │    │
+                                    │  │  │  ┌────────────┐    ┌────────────┐        │  │    │
+                                    │  │  │  │config-server│   │api-gateway │        │  │    │
+                                    │  │  │  └────────────┘    └────────────┘        │  │    │
+                                    │  │  │  ┌────────────┐    ┌────────────┐        │  │    │
+                                    │  │  │  │ customers  │    │   visits   │        │  │    │
+                                    │  │  │  └────────────┘    └────────────┘        │  │    │
+                                    │  │  │  ┌────────────┐                          │  │    │
+                                    │  │  │  │    vets    │                          │  │    │
+                                    │  │  │  └────────────┘                          │  │    │
+                                    │  │  └──────────────────────────────────────────┘  │    │
+                                    │  │                       │                        │    │
+                                    │  │                       ▼                        │    │
+                                    │  │               ┌──────────────┐                 │    │
+                                    │  │               │  Cloud Map   │                 │    │
+                                    │  │               │  (DNS-based  │                 │    │
+                                    │  │               │  discovery)  │                 │    │
+                                    │  │               └──────────────┘                 │    │
+                                    │  └────────────────────────────────────────────────┘    │
+                                    └─────────────────────────────────────────────────────────┘
 ```
 
-## Cost Breakdown
+## Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| config-server | 8888 | Spring Cloud Config Server |
+| api-gateway | 8080 | API Gateway (public via ALB) |
+| customers-service | 8081 | Customer and pet management |
+| visits-service | 8082 | Visit scheduling |
+| vets-service | 8083 | Veterinarian information |
+
+## Cost Breakdown (DEV Environment)
 
 | Component | Cost | Notes |
 |-----------|------|-------|
-| EC2 (t2.micro) | Free | 750 hrs/month free tier |
+| EC2 (5x t2.micro) | Free | 750 hrs/month free tier |
 | ALB | Free | 750 hrs/month free tier |
-| VPC Endpoints | ~$0.01/GB | No hourly cost, only data transfer |
 | ECR | Free | 500MB free storage |
 | CloudWatch Logs | Free | 5GB ingestion free |
-| RDS (optional) | ~$15/month | Disabled by default, uses in-memory DB |
+| Cloud Map | Free | First 1M queries free |
+| RDS (optional) | ~$15/month | Disabled by default |
 
-**Estimated cost for testing: < $1/month** (assuming free tier eligibility)
+**Estimated cost: < $1/month** (assuming free tier eligibility)
 
 ## Project Structure
 
@@ -62,14 +80,14 @@ The Spring PetClinic microservices application serves as the workload, but the i
 ├── terraform/
 │   ├── environments/
 │   │   ├── dev/              # Development environment
-│   │   │   ├── main.tf
-│   │   │   ├── variables.tf
-│   │   │   ├── terraform.tfvars
-│   │   │   └── backend.tf
-│   │   └── sit/              # SIT environment (multi-EC2)
+│   │   │   ├── main.tf       # Main configuration
+│   │   │   ├── variables.tf  # Variable definitions
+│   │   │   ├── terraform.tfvars  # Variable values
+│   │   │   └── backend.tf    # State backend config
+│   │   └── sit/              # SIT environment
 │   │
 │   └── modules/
-│       ├── networking/       # VPC, subnets, VPC endpoints
+│       ├── networking/       # VPC, subnets, security groups
 │       ├── ecs-cluster/      # ECS cluster, EC2 ASG, IAM
 │       ├── ecs-service/      # Task definitions, services
 │       ├── alb/              # Application Load Balancer
@@ -79,7 +97,8 @@ The Spring PetClinic microservices application serves as the workload, but the i
 │
 ├── docker/                   # Dockerfile for all services
 ├── spring-petclinic-*/       # Microservice source code
-└── scripts/                  # Build and deployment scripts
+└── scripts/
+    └── pushImagesToECR.ps1   # Build and push images to ECR
 ```
 
 ## Quick Start
@@ -90,24 +109,9 @@ The Spring PetClinic microservices application serves as the workload, but the i
 - Terraform >= 1.0.0
 - Docker
 - Java 17 (for building the application)
+- PowerShell (for Windows) or Bash (for Linux/Mac)
 
-### 1. Build and Push Docker Images
-
-```bash
-# Build all services
-./mvnw clean install -P buildDocker
-
-# Login to ECR
-aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin <account-id>.dkr.ecr.ap-southeast-1.amazonaws.com
-
-# Tag and push images
-export REPOSITORY_PREFIX=<account-id>.dkr.ecr.ap-southeast-1.amazonaws.com/petclinic
-export VERSION=latest
-./scripts/tagImages.sh
-./scripts/pushImages.sh
-```
-
-### 2. Deploy Infrastructure
+### 1. Deploy Infrastructure
 
 ```bash
 cd terraform/environments/dev
@@ -122,119 +126,178 @@ terraform plan
 terraform apply
 ```
 
-### 3. Access the Application
+### 2. Build and Push Docker Images
 
-After deployment, Terraform outputs the ALB DNS name:
+```powershell
+# Build all services first
+./mvnw clean install -P buildDocker
+
+# Run the push script (PowerShell)
+cd scripts
+./pushImagesToECR.ps1
+```
+
+The script will:
+- Login to ECR
+- Build Docker images for all services
+- Push images to ECR repositories
+
+### 3. Force ECS Service Update (if images were updated)
+
+```bash
+aws ecs update-service --cluster petclinic-dev --service config-server --force-new-deployment
+aws ecs update-service --cluster petclinic-dev --service api-gateway --force-new-deployment
+aws ecs update-service --cluster petclinic-dev --service customers-service --force-new-deployment
+aws ecs update-service --cluster petclinic-dev --service visits-service --force-new-deployment
+aws ecs update-service --cluster petclinic-dev --service vets-service --force-new-deployment
+```
+
+### 4. Access the Application
+
+After deployment, get the ALB DNS name:
 
 ```bash
 terraform output alb_dns_name
-# Example: petclinic-dev-alb-123456.ap-southeast-1.elb.amazonaws.com
 ```
 
 Open `http://<alb-dns-name>` in your browser.
 
 ## Configuration
 
-### Environment Variables
+### Key Variables (terraform.tfvars)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `project` | petclinic | Project name prefix |
-| `environment` | dev | Environment name |
-| `aws_region` | ap-southeast-1 | AWS region |
-| `instance_type` | t2.micro | EC2 instance type |
-| `image_tag` | latest | Docker image tag to deploy |
-| `enable_rds` | false | Enable RDS MySQL (default: in-memory HSQLDB) |
-| `enable_service_discovery` | false | Enable Cloud Map (for multi-EC2 setups) |
+```hcl
+project            = "petclinic"
+environment        = "dev"
+aws_region         = "ap-southeast-1"
+instance_type      = "t2.micro"
 
-### Deploying a New Image Version
+# Service Discovery - enables Cloud Map DNS
+enable_service_discovery = true
 
-```bash
-# Option 1: Update terraform.tfvars
-image_tag = "v1.2.3"
+# EC2 instances (1 per service for isolation)
+ec2_min_size         = 5
+ec2_max_size         = 5
+ec2_desired_capacity = 5
 
-# Option 2: Pass at apply time
-terraform apply -var="image_tag=v1.2.3"
+# Database - uses in-memory HSQLDB by default
+enable_rds = false
 ```
 
-## Environments
+### Network Mode
 
-### DEV (Single EC2)
-- All services on one t2.micro instance
-- Services communicate via localhost
-- Cloud Map disabled
-- Suitable for development and testing
-
-### SIT (Multi-EC2)
-- Services distributed across multiple instances
-- Cloud Map enabled for DNS-based service discovery
-- More realistic production-like setup
-
-## Key Design Decisions
-
-### VPC Endpoints vs NAT Gateway
-
-We use VPC Endpoints instead of NAT Gateway to minimize costs:
-
-| Approach | Hourly Cost | Use Case |
-|----------|-------------|----------|
-| VPC Endpoints | $0 (pay per GB) | Short-lived test environments |
-| NAT Gateway | $0.045/hr | Long-running production |
+The infrastructure uses **AWSVPC network mode** which provides:
+- Each task gets its own Elastic Network Interface (ENI)
+- Tasks can have their own security groups
+- Direct IP addressing for service discovery
+- Required for AWS Cloud Map A-record based discovery
 
 ### Service Discovery
 
-- **DEV**: Services use `localhost` (single EC2)
-- **SIT/PROD**: AWS Cloud Map provides DNS names like `vets-service.petclinic.local`
+Services communicate using AWS Cloud Map DNS names:
+- `config-server.petclinic.local:8888`
+- `customers-service.petclinic.local:8081`
+- `visits-service.petclinic.local:8082`
+- `vets-service.petclinic.local:8083`
 
-The API Gateway uses Spring Cloud Config to switch between these modes based on the `aws` profile.
+The API Gateway routes requests to backend services using these DNS names.
 
-### ECS Launch Type
+### Spring Profiles
 
-EC2 launch type chosen over Fargate for:
-- Free tier eligibility
-- Better cost control for learning/testing
-- More visibility into the underlying infrastructure
+| Profile | Description |
+|---------|-------------|
+| `aws` | Disables Eureka, enables Cloud Map discovery |
+| `native` | Config server uses classpath config (not Git) |
+| `mysql` | Uses RDS MySQL instead of HSQLDB |
+
+ECS task definitions automatically set `SPRING_PROFILES_ACTIVE` based on configuration.
 
 ## Terraform Modules
 
 | Module | Purpose |
 |--------|---------|
-| `networking` | VPC, subnets, security groups, VPC endpoints |
-| `ecs-cluster` | ECS cluster, EC2 ASG, IAM roles |
-| `ecs-service` | Task definitions, ECS services, CloudWatch logs |
-| `alb` | Application Load Balancer, target groups |
+| `networking` | VPC, public/private subnets, security groups |
+| `ecs-cluster` | ECS cluster, EC2 Auto Scaling Group, IAM roles |
+| `ecs-service` | Task definitions, ECS services with AWSVPC mode |
+| `alb` | Application Load Balancer, target groups, listeners |
 | `ecr` | Container registries with lifecycle policies |
-| `service-discovery` | AWS Cloud Map namespace and services |
-| `rds` | Optional RDS MySQL instance |
+| `service-discovery` | Cloud Map namespace and service registrations |
+| `rds` | Optional RDS MySQL instance with Secrets Manager |
+
+## Key Design Decisions
+
+### Public Subnets for ECS (Cost Optimization)
+
+For DEV environment, ECS tasks run in public subnets with public IPs. This eliminates the need for:
+- NAT Gateway (~$32/month)
+- VPC Endpoints (~$7/month each)
+
+Tasks can directly access ECR, CloudWatch, and other AWS services via the Internet Gateway.
+
+### AWSVPC Network Mode
+
+Chosen over bridge mode for:
+- AWS Cloud Map integration (A-record DNS)
+- Per-task security group assignment
+- Simplified networking model
+- Better isolation between services
+
+### EC2 Launch Type
+
+EC2 launch type chosen over Fargate for:
+- Free tier eligibility (t2.micro)
+- Better cost control for learning/testing
+- More visibility into underlying infrastructure
 
 ## Cleanup
 
 ```bash
 # Destroy all resources
+cd terraform/environments/dev
 terraform destroy
-
-# If ECR has images, delete them first
-aws ecr batch-delete-image --repository-name petclinic/api-gateway --image-ids imageTag=latest
 ```
+
+If ECR repositories have images, they will be deleted automatically (force_delete = true).
 
 ## Troubleshooting
 
 ### Services not starting
+
 Check CloudWatch Logs:
 ```bash
-aws logs tail /ecs/petclinic/api-gateway --follow
+aws logs tail /ecs/petclinic/customers-service --follow
 ```
 
-### Container health checks failing
-Services need 2-3 minutes to start. Check the ECS console for task status.
+### Config server connection issues
+
+Services may fail to connect to config-server on initial startup if it's not ready. The services are configured to continue without config-server (optional config import). Check if config-server is healthy:
+
+```bash
+# From an EC2 instance in the VPC
+curl http://config-server.petclinic.local:8888/actuator/health
+```
+
+### Service discovery not working
+
+Verify Cloud Map registration:
+```bash
+aws servicediscovery list-instances --service-id <service-id>
+```
+
+Check Route 53 hosted zone for `petclinic.local` records.
 
 ### Cannot pull images from ECR
-Ensure VPC Endpoints for `ecr.api` and `ecr.dkr` are created and security groups allow HTTPS traffic.
+
+Ensure:
+1. EC2 instances have public IPs (for public subnet setup)
+2. Security group allows outbound HTTPS (443)
+3. IAM role has ECR permissions
 
 ## References
 
-- [Spring PetClinic Microservices](https://github.com/spring-petclinic/spring-petclinic-microservices) — Original application
+- [Spring PetClinic Microservices](https://github.com/spring-petclinic/spring-petclinic-microservices)
 - [AWS ECS Documentation](https://docs.aws.amazon.com/ecs/)
+- [AWS Cloud Map](https://docs.aws.amazon.com/cloud-map/)
 - [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 
 ## License
