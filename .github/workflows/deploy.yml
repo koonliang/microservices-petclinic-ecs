@@ -1,0 +1,278 @@
+name: Deploy to ECS
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - sit
+      action:
+        description: 'Deployment action'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - terraform-apply
+          - terraform-destroy
+      confirm_destroy:
+        description: 'Type environment name to confirm destroy'
+        required: false
+        type: string
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  IMAGE_TAG: ${{ github.sha }}
+  SERVICES: config-server api-gateway customers-service visits-service vets-service
+
+jobs:
+  # Validation job for destroy action
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate destroy confirmation
+        if: inputs.action == 'terraform-destroy'
+        run: |
+          if [ "${{ inputs.confirm_destroy }}" != "${{ inputs.environment }}" ]; then
+            echo "::error::Destroy confirmation failed. You must type '${{ inputs.environment }}' to confirm."
+            exit 1
+          fi
+          echo "Destroy confirmed for environment: ${{ inputs.environment }}"
+
+  # Build and push Docker images to ECR
+  build:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: inputs.action != 'terraform-destroy'
+    outputs:
+      image_tag: ${{ steps.set-tag.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: set-tag
+        run: echo "tag=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'adopt'
+          cache: maven
+
+      - name: Build with Maven
+        run: mvn -B package -DskipTests --file pom.xml
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker images
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          SHORT_SHA: ${{ steps.set-tag.outputs.tag }}
+        run: |
+          for service in $SERVICES; do
+            echo "Building $service..."
+            
+            docker build -f docker/Dockerfile \
+              --build-arg ARTIFACT_NAME="spring-petclinic-${service}-3.2.4" \
+              --build-arg EXPOSED_PORT=8080 \
+              -t $ECR_REGISTRY/petclinic/${service}:${SHORT_SHA} \
+              -t $ECR_REGISTRY/petclinic/${service}:latest \
+              spring-petclinic-${service}/target
+            
+            echo "Pushing $service..."
+            docker push $ECR_REGISTRY/petclinic/${service}:${SHORT_SHA}
+            docker push $ECR_REGISTRY/petclinic/${service}:latest
+          done
+          
+          echo "All images pushed successfully!"
+
+  # Direct ECS deployment
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    if: inputs.action == 'deploy'
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy config-server first
+        env:
+          CLUSTER: petclinic-${{ inputs.environment }}
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          echo "Deploying config-server to $CLUSTER..."
+          
+          # Get current task definition
+          TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition petclinic-config-server \
+            --query 'taskDefinition' \
+            --output json)
+          
+          # Update image tag in container definition
+          NEW_TASK_DEF=$(echo $TASK_DEF | jq \
+            --arg IMAGE_TAG "$IMAGE_TAG" \
+            '.containerDefinitions[0].image = (.containerDefinitions[0].image | split(":")[0] + ":" + $IMAGE_TAG)')
+          
+          # Register new task definition
+          NEW_TASK_DEF_ARN=$(echo $NEW_TASK_DEF | jq -r '{
+            family: .family,
+            networkMode: .networkMode,
+            containerDefinitions: .containerDefinitions,
+            requiresCompatibilities: .requiresCompatibilities,
+            executionRoleArn: .executionRoleArn,
+            taskRoleArn: .taskRoleArn
+          }' | aws ecs register-task-definition \
+            --cli-input-json file:///dev/stdin \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          
+          echo "Registered new task definition: $NEW_TASK_DEF_ARN"
+          
+          # Update service
+          aws ecs update-service \
+            --cluster $CLUSTER \
+            --service config-server \
+            --task-definition $NEW_TASK_DEF_ARN \
+            --force-new-deployment
+          
+          echo "Waiting for config-server to stabilize..."
+          aws ecs wait services-stable \
+            --cluster $CLUSTER \
+            --services config-server
+          
+          echo "config-server deployed successfully!"
+
+      - name: Deploy remaining services
+        env:
+          CLUSTER: petclinic-${{ inputs.environment }}
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          REMAINING_SERVICES="api-gateway customers-service visits-service vets-service"
+          
+          for service in $REMAINING_SERVICES; do
+            echo "Deploying $service to $CLUSTER..."
+            
+            # Get current task definition
+            TASK_DEF=$(aws ecs describe-task-definition \
+              --task-definition petclinic-${service} \
+              --query 'taskDefinition' \
+              --output json)
+            
+            # Update image tag in container definition
+            NEW_TASK_DEF=$(echo $TASK_DEF | jq \
+              --arg IMAGE_TAG "$IMAGE_TAG" \
+              '.containerDefinitions[0].image = (.containerDefinitions[0].image | split(":")[0] + ":" + $IMAGE_TAG)')
+            
+            # Register new task definition
+            NEW_TASK_DEF_ARN=$(echo $NEW_TASK_DEF | jq -r '{
+              family: .family,
+              networkMode: .networkMode,
+              containerDefinitions: .containerDefinitions,
+              requiresCompatibilities: .requiresCompatibilities,
+              executionRoleArn: .executionRoleArn,
+              taskRoleArn: .taskRoleArn
+            }' | aws ecs register-task-definition \
+              --cli-input-json file:///dev/stdin \
+              --query 'taskDefinition.taskDefinitionArn' \
+              --output text)
+            
+            echo "Registered new task definition: $NEW_TASK_DEF_ARN"
+            
+            # Update service (don't wait yet)
+            aws ecs update-service \
+              --cluster $CLUSTER \
+              --service $service \
+              --task-definition $NEW_TASK_DEF_ARN \
+              --force-new-deployment
+          done
+          
+          echo "Waiting for all services to stabilize..."
+          aws ecs wait services-stable \
+            --cluster $CLUSTER \
+            --services $REMAINING_SERVICES
+          
+          echo "All services deployed successfully!"
+
+  # Terraform apply
+  terraform-apply:
+    runs-on: ubuntu-latest
+    needs: build
+    if: inputs.action == 'terraform-apply'
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: terraform/environments/${{ inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+        run: terraform plan -var="image_tag=$IMAGE_TAG" -out=tfplan
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+  # Terraform destroy
+  terraform-destroy:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: inputs.action == 'terraform-destroy'
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: terraform/environments/${{ inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve
