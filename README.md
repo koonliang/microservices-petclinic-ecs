@@ -404,8 +404,6 @@ cd terraform/environments/dev
 terraform destroy
 ```
 
-If ECR repositories have images, they will be deleted automatically (force_delete = true).
-
 ## Troubleshooting
 
 ### Services not starting
