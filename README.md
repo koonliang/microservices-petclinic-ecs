@@ -78,6 +78,13 @@ The Spring PetClinic microservices application serves as the workload, but the i
 
 ```
 ├── terraform/
+│   ├── shared/               # Long-lived shared infrastructure
+│   │   └── ecr/              # ECR repositories (persistent across env destroys)
+│   │       ├── main.tf
+│   │       ├── variables.tf
+│   │       ├── outputs.tf
+│   │       └── backend.tf
+│   │
 │   ├── environments/
 │   │   ├── dev/              # Development environment
 │   │   │   ├── main.tf       # Main configuration
@@ -91,7 +98,6 @@ The Spring PetClinic microservices application serves as the workload, but the i
 │       ├── ecs-cluster/      # ECS cluster, EC2 ASG, IAM
 │       ├── ecs-service/      # Task definitions, services
 │       ├── alb/              # Application Load Balancer
-│       ├── ecr/              # Container registries
 │       ├── service-discovery/# AWS Cloud Map
 │       └── rds/              # Optional MySQL database
 │
@@ -161,6 +167,147 @@ terraform output alb_dns_name
 ```
 
 Open `http://<alb-dns-name>` in your browser.
+
+---
+
+## CI/CD Pipelines
+
+### CI Pipeline (Automatic)
+
+The CI pipeline runs automatically on every push or pull request to the `main` branch.
+
+**Workflow**: `.github/workflows/maven-build.yml`
+
+| Trigger | Action |
+|---------|--------|
+| Push to `main` | Build and test with Maven |
+| PR to `main` | Build and test with Maven |
+
+### CD Pipeline (Manual)
+
+The CD pipeline is triggered manually via GitHub Actions workflow dispatch.
+
+**Workflow**: `.github/workflows/deploy.yml`
+
+#### Inputs
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `environment` | choice | `dev` | Target environment (`dev`, `sit`) |
+| `action` | choice | `deploy` | Deployment action (see below) |
+| `enable_rds` | choice | `false` | Enable RDS MySQL database |
+| `confirm_destroy` | string | *(empty)* | Type environment name to confirm destroy |
+
+#### Actions
+
+| Action | Description |
+|--------|-------------|
+| `deploy` | Direct ECS update - builds images, pushes to ECR, updates ECS task definitions |
+| `terraform-apply` | Full Terraform apply - builds images, pushes to ECR, runs `terraform apply` |
+| `terraform-destroy` | Destroys environment infrastructure (ECR repos are preserved) |
+
+#### How to Deploy
+
+1. Go to **Actions** → **Deploy to ECS**
+2. Click **Run workflow**
+3. Select environment and action
+4. Click **Run workflow**
+
+### Shared Infrastructure (Manual)
+
+Manages long-lived shared resources like ECR repositories that persist across environment destroys.
+
+**Workflow**: `.github/workflows/shared-infra.yml`
+
+#### Inputs
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `component` | choice | `ecr` | Shared component to manage |
+| `action` | choice | `plan` | Terraform action (`plan`, `apply`, `destroy`) |
+| `confirm_destroy` | string | *(empty)* | Type component name to confirm destroy |
+
+#### Initial Setup
+
+Before deploying any environment, you must first create the shared ECR repositories:
+
+1. Go to **Actions** → **Manage Shared Infrastructure**
+2. Select `component: ecr` and `action: apply`
+3. Click **Run workflow**
+
+This only needs to be done once. ECR repositories will persist even when environments are destroyed.
+
+#### Deployment Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Manual Trigger (workflow_dispatch)                         │
+│  - Select environment (dev/sit)                             │
+│  - Select action (deploy/terraform-apply/terraform-destroy) │
+│  - Optional: enable_rds                                     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+          ┌───────────────────┼───────────────────┐
+          │                   │                   │
+          ▼                   ▼                   ▼
+   ┌─────────────┐    ┌─────────────┐    ┌─────────────────┐
+   │   deploy    │    │  terraform  │    │    terraform    │
+   │             │    │    apply    │    │     destroy     │
+   └─────────────┘    └─────────────┘    └─────────────────┘
+          │                   │                   │
+          ▼                   ▼                   │
+   ┌─────────────────────────────────────┐       │
+   │  Build & Push Docker Images         │       │
+   │  - mvn package -DskipTests          │       │
+   │  - Build 5 Docker images            │       │
+   │  - Tag: ${SHA::7} + latest          │       │
+   │  - Push to ECR                      │       │
+   └─────────────────────────────────────┘       │
+          │                   │                   │
+          ▼                   ▼                   ▼
+   ┌─────────────┐    ┌─────────────┐    ┌─────────────────┐
+   │ Update ECS  │    │  terraform  │    │    terraform    │
+   │ Services    │    │    apply    │    │     destroy     │
+   │ (API-based) │    │             │    │  (confirm req)  │
+   └─────────────┘    └─────────────┘    └─────────────────┘
+```
+
+#### Image Tagging Strategy
+
+Images are tagged with:
+- **Short Git SHA** (e.g., `a1b2c3d`) - immutable, traceable
+- **`latest`** - convenience alias for manual operations
+
+#### GitHub Setup
+
+**Secrets** (Settings → Secrets and variables → Actions → Secrets):
+| Secret | Description |
+|--------|-------------|
+| `AWS_OIDC_ROLE_ARN` | IAM role ARN for GitHub OIDC authentication |
+| `DB_PASSWORD` | Database password (required if `enable_rds=true`) |
+
+**Variables** (Settings → Secrets and variables → Actions → Variables):
+| Variable | Description |
+|----------|-------------|
+| `AWS_REGION` | AWS region (e.g., `ap-southeast-1`) |
+
+#### IAM Role Permissions
+
+The OIDC role needs the following permissions:
+
+```
+ECR:        GetAuthorizationToken, BatchCheckLayerAvailability, PutImage, 
+            InitiateLayerUpload, UploadLayerPart, CompleteLayerUpload,
+            BatchGetImage, GetDownloadUrlForLayer
+ECS:        DescribeServices, UpdateService, DescribeTaskDefinition,
+            RegisterTaskDefinition, DescribeClusters
+S3:         GetObject, PutObject, DeleteObject (on tfstate bucket)
+DynamoDB:   GetItem, PutItem, DeleteItem (on locks table)
+IAM:        PassRole (for ECS task/execution roles)
+Logs:       CreateLogGroup, CreateLogStream, PutLogEvents
+```
+
+---
 
 ## Configuration
 

@@ -20,6 +20,14 @@ on:
           - deploy
           - terraform-apply
           - terraform-destroy
+      enable_rds:
+        description: 'Enable RDS MySQL database'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
       confirm_destroy:
         description: 'Type environment name to confirm destroy'
         required: false
@@ -246,7 +254,12 @@ jobs:
       - name: Terraform Plan
         env:
           IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-        run: terraform plan -var="image_tag=$IMAGE_TAG" -out=tfplan
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+        run: |
+          terraform plan \
+            -var="image_tag=$IMAGE_TAG" \
+            -var="enable_rds=${{ inputs.enable_rds }}" \
+            -out=tfplan
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan

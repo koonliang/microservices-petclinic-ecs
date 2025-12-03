@@ -1,0 +1,81 @@
+name: Manage Shared Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Shared component to manage'
+        required: true
+        default: 'ecr'
+        type: choice
+        options:
+          - ecr
+      action:
+        description: 'Terraform action'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      confirm_destroy:
+        description: 'Type component name to confirm destroy (e.g., ecr)'
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate destroy confirmation
+        if: inputs.action == 'destroy'
+        run: |
+          if [ "${{ inputs.confirm_destroy }}" != "${{ inputs.component }}" ]; then
+            echo "::error::Destroy confirmation failed. You must type '${{ inputs.component }}' to confirm."
+            exit 1
+          fi
+          echo "Destroy confirmed for component: ${{ inputs.component }}"
+
+  terraform:
+    runs-on: ubuntu-latest
+    needs: validate
+    defaults:
+      run:
+        working-directory: terraform/shared/${{ inputs.component }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan
+        if: inputs.action == 'plan' || inputs.action == 'apply'
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        if: inputs.action == 'apply'
+        run: terraform apply -auto-approve tfplan
+
+      - name: Terraform Destroy
+        if: inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
