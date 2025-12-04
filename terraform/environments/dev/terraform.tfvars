@@ -17,5 +17,12 @@ enable_service_discovery = true
 # - vets-service
 # - visits-service
 ec2_min_size         = 5
-ec2_max_size         = 5
+ec2_max_size         = 8
 ec2_desired_capacity = 5
+
+# Auto Scaling Configuration
+# Set to true to enable autoscaling under load
+enable_autoscaling        = true
+max_task_count            = 2    # Max tasks per service
+autoscaling_cpu_target    = 70   # Scale when CPU exceeds 70%
+autoscaling_memory_target = 70   # Scale when memory exceeds 70%

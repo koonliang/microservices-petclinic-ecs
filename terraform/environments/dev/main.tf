@@ -119,9 +119,11 @@ module "ecs_cluster" {
   enable_rds            = var.enable_rds
 
   # EC2 Auto Scaling
-  min_size         = var.ec2_min_size
-  max_size         = var.ec2_max_size
-  desired_capacity = var.ec2_desired_capacity
+  min_size                         = var.ec2_min_size
+  max_size                         = var.ec2_max_size
+  desired_capacity                 = var.ec2_desired_capacity
+  enable_capacity_provider_scaling = var.enable_autoscaling
+  capacity_provider_target         = 100
 }
 
 #############################
@@ -195,4 +197,12 @@ module "ecs_services" {
   db_secret_arn = module.rds.db_secret_arn
 
   additional_env_vars = []
+
+  # ECS Service Auto Scaling
+  enable_autoscaling        = var.enable_autoscaling
+  cluster_name              = module.ecs_cluster.cluster_name
+  min_task_count            = each.value.desired_count
+  max_task_count            = var.max_task_count
+  autoscaling_cpu_target    = var.autoscaling_cpu_target
+  autoscaling_memory_target = var.autoscaling_memory_target
 }

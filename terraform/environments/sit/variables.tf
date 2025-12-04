@@ -63,6 +63,34 @@ variable "ec2_desired_capacity" {
 }
 
 #############################
+# Auto Scaling
+#############################
+
+variable "enable_autoscaling" {
+  description = "Enable ECS service and EC2 capacity provider auto scaling"
+  type        = bool
+  default     = false
+}
+
+variable "max_task_count" {
+  description = "Maximum number of tasks per service for autoscaling"
+  type        = number
+  default     = 2
+}
+
+variable "autoscaling_cpu_target" {
+  description = "Target CPU utilization percentage for autoscaling"
+  type        = number
+  default     = 70
+}
+
+variable "autoscaling_memory_target" {
+  description = "Target memory utilization percentage for autoscaling"
+  type        = number
+  default     = 70
+}
+
+#############################
 # RDS
 #############################
 

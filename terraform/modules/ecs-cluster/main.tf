@@ -100,11 +100,14 @@ resource "aws_ecs_capacity_provider" "ec2" {
   name = "${var.project}-${var.environment}-ec2"
 
   auto_scaling_group_provider {
-    auto_scaling_group_arn = aws_autoscaling_group.ecs.arn
+    auto_scaling_group_arn         = aws_autoscaling_group.ecs.arn
+    managed_termination_protection = "DISABLED"
 
     managed_scaling {
-      status          = "DISABLED"
-      target_capacity = 100
+      status                    = var.enable_capacity_provider_scaling ? "ENABLED" : "DISABLED"
+      target_capacity           = var.capacity_provider_target
+      minimum_scaling_step_size = 1
+      maximum_scaling_step_size = 2
     }
   }
 }
