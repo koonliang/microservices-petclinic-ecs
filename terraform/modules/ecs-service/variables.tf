@@ -119,3 +119,55 @@ variable "security_group_id" {
   description = "Security group ID for ECS tasks"
   type        = string
 }
+
+#############################
+# ECS Service Auto Scaling
+#############################
+
+variable "enable_autoscaling" {
+  description = "Enable ECS service auto scaling"
+  type        = bool
+  default     = false
+}
+
+variable "cluster_name" {
+  description = "ECS cluster name (required for autoscaling resource_id)"
+  type        = string
+  default     = ""
+}
+
+variable "min_task_count" {
+  description = "Minimum number of tasks for autoscaling"
+  type        = number
+  default     = 1
+}
+
+variable "max_task_count" {
+  description = "Maximum number of tasks for autoscaling"
+  type        = number
+  default     = 2
+}
+
+variable "autoscaling_cpu_target" {
+  description = "Target CPU utilization percentage for autoscaling"
+  type        = number
+  default     = 70
+}
+
+variable "autoscaling_memory_target" {
+  description = "Target memory utilization percentage for autoscaling"
+  type        = number
+  default     = 70
+}
+
+variable "scale_in_cooldown" {
+  description = "Cooldown period in seconds before scaling in"
+  type        = number
+  default     = 300
+}
+
+variable "scale_out_cooldown" {
+  description = "Cooldown period in seconds before scaling out"
+  type        = number
+  default     = 60
+}

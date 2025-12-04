@@ -62,3 +62,19 @@ variable "desired_capacity" {
   type        = number
   default     = 1
 }
+
+#############################
+# Capacity Provider Scaling
+#############################
+
+variable "enable_capacity_provider_scaling" {
+  description = "Enable ECS Capacity Provider managed scaling for EC2 instances"
+  type        = bool
+  default     = false
+}
+
+variable "capacity_provider_target" {
+  description = "Target capacity percentage for capacity provider scaling"
+  type        = number
+  default     = 100
+}
