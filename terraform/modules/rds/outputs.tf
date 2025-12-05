@@ -1,5 +1,5 @@
 output "rds_endpoint" {
-  value = var.enable_rds ? aws_db_instance.main[0].endpoint : ""
+  value = var.enable_rds ? aws_db_instance.main[0].address : ""
 }
 
 output "db_secret_arn" {
