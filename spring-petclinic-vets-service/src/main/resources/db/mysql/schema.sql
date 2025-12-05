@@ -1,7 +1,5 @@
-CREATE DATABASE IF NOT EXISTS petclinic;
-GRANT ALL PRIVILEGES ON petclinic.* TO pc@localhost IDENTIFIED BY 'pc';
-
-USE petclinic;
+-- Database and user are already created by RDS/Terraform
+-- No need to CREATE DATABASE or GRANT privileges when using RDS
 
 CREATE TABLE IF NOT EXISTS vets (
   id INT(4) UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
