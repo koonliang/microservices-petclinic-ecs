@@ -15,8 +15,9 @@ variable "vpc_id" {
   type = string
 }
 
-variable "private_subnet_ids" {
-  type = list(string)
+variable "subnet_ids" {
+  description = "Subnet IDs for RDS (private for SIT/PROD, can be public for DEV)"
+  type        = list(string)
 }
 
 variable "ecs_security_group_id" {

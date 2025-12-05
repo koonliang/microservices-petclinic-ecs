@@ -3,7 +3,7 @@
 resource "aws_db_subnet_group" "main" {
   count      = var.enable_rds ? 1 : 0
   name       = "${var.project}-${var.environment}"
-  subnet_ids = var.private_subnet_ids
+  subnet_ids = var.subnet_ids
 
   tags = {
     Name = "${var.project}-${var.environment}-db-subnet"
@@ -53,6 +53,7 @@ resource "aws_db_instance" "main" {
 resource "aws_secretsmanager_secret" "db_credentials" {
   count = var.enable_rds ? 1 : 0
   name  = "${var.project}/${var.environment}/db-credentials"
+  recovery_window_in_days = 0  # Allows immediate re-creation
 }
 
 resource "aws_secretsmanager_secret_version" "db_credentials" {

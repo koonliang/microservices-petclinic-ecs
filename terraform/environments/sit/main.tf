@@ -141,7 +141,7 @@ module "alb" {
 }
 
 #############################
-# RDS (Optional)
+# RDS (Optional - in private subnets for SIT)
 #############################
 module "rds" {
   source = "../../modules/rds"
@@ -150,7 +150,7 @@ module "rds" {
   project               = var.project
   environment           = var.environment
   vpc_id                = module.networking.vpc_id
-  private_subnet_ids    = module.networking.private_subnet_ids
+  subnet_ids            = module.networking.private_subnet_ids  # SIT: private subnets (NAT Gateway enabled)
   ecs_security_group_id = module.networking.ecs_security_group_id
   db_password           = var.db_password
 }
