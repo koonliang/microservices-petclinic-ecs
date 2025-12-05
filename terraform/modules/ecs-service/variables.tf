@@ -120,6 +120,12 @@ variable "security_group_id" {
   type        = string
 }
 
+variable "assign_public_ip" {
+  description = "Assign public IP to ECS tasks (required for public subnets without NAT)"
+  type        = bool
+  default     = false
+}
+
 #############################
 # ECS Service Auto Scaling
 #############################

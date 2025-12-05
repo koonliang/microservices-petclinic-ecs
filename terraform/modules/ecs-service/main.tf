@@ -92,8 +92,9 @@ resource "aws_ecs_service" "service" {
 
   # Network configuration required for awsvpc mode
   network_configuration {
-    subnets         = var.subnet_ids
-    security_groups = [var.security_group_id]
+    subnets          = var.subnet_ids
+    security_groups  = [var.security_group_id]
+    assign_public_ip = var.assign_public_ip
   }
 
   # ALB (only for api-gateway)

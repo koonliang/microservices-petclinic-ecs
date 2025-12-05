@@ -181,6 +181,7 @@ module "ecs_services" {
   # Network configuration for awsvpc mode (use public subnets for DEV)
   subnet_ids        = module.networking.public_subnet_ids
   security_group_id = module.networking.ecs_security_group_id
+  assign_public_ip  = var.enable_rds  # Only needed when RDS is enabled (for DNS resolution without NAT)
 
   # ALB (only for api-gateway)
   enable_alb       = each.value.enable_alb
