@@ -140,7 +140,7 @@ module "alb" {
 }
 
 #############################
-# RDS (Optional)
+# RDS (Optional - in public subnets for DEV to avoid NAT costs)
 #############################
 module "rds" {
   source = "../../modules/rds"
@@ -149,7 +149,7 @@ module "rds" {
   project               = var.project
   environment           = var.environment
   vpc_id                = module.networking.vpc_id
-  private_subnet_ids    = module.networking.private_subnet_ids
+  subnet_ids            = module.networking.public_subnet_ids  # DEV: public subnets (no NAT needed)
   ecs_security_group_id = module.networking.ecs_security_group_id
   db_password           = var.db_password
 }
@@ -181,7 +181,6 @@ module "ecs_services" {
   # Network configuration for awsvpc mode (use public subnets for DEV)
   subnet_ids        = module.networking.public_subnet_ids
   security_group_id = module.networking.ecs_security_group_id
-  assign_public_ip  = var.enable_rds  # Only needed when RDS is enabled (for DNS resolution without NAT)
 
   # ALB (only for api-gateway)
   enable_alb       = each.value.enable_alb

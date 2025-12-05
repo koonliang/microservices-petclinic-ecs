@@ -91,10 +91,11 @@ resource "aws_ecs_service" "service" {
   launch_type     = "EC2"
 
   # Network configuration required for awsvpc mode
+  # Note: assign_public_ip is NOT supported for EC2 launch type, only Fargate
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = [var.security_group_id]
-    assign_public_ip = var.assign_public_ip
+    assign_public_ip = false
   }
 
   # ALB (only for api-gateway)
