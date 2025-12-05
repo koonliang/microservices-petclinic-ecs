@@ -1,12 +1,13 @@
 # Shared configuration for all Spring Cloud Config clients
 # This config is fetched from config-server and applies to all microservices
 
-# Allow microservices to override remote properties with their own System properties or config file
+# Config server properties should override local application.yml defaults
+# But environment variables (from ECS) can still override everything
 spring:
   cloud:
     config:
       allow-override: true
-      override-none: true
+      override-none: false
   # HSQLDB data initialization (default when MySQL is not enabled)
   sql:
     init:
