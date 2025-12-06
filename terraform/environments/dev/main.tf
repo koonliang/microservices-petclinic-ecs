@@ -122,7 +122,7 @@ module "ecs_cluster" {
   min_size                         = var.ec2_min_size
   max_size                         = var.ec2_max_size
   desired_capacity                 = var.ec2_desired_capacity
-  enable_capacity_provider_scaling = var.enable_autoscaling
+  enable_capacity_provider_scaling = var.enable_capacity_provider_scaling
   capacity_provider_target         = 100
 }
 

@@ -15,6 +15,9 @@ ec2_min_size         = 5    # 1 per service minimum
 ec2_max_size         = 10   # 2x services (5 services × 2 = 10) for scaling headroom
 ec2_desired_capacity = 5    # Start with 5 (1 per service)
 
+# Capacity Provider Scaling - ENABLED (automatically adds EC2 instances when needed)
+enable_capacity_provider_scaling = true
+
 # Task Auto Scaling - DISABLED (using EC2 scaling instead due to t2.micro ENI limits)
 # With awsvpc mode, t2.micro supports only 2 ENIs, so we enforce 1 task per instance
 enable_autoscaling        = false  # Disable task autoscaling

@@ -93,8 +93,14 @@ variable "ec2_desired_capacity" {
 # Auto Scaling
 #############################
 
+variable "enable_capacity_provider_scaling" {
+  description = "Enable ECS Capacity Provider managed scaling for EC2 instances"
+  type        = bool
+  default     = true
+}
+
 variable "enable_autoscaling" {
-  description = "Enable ECS service and EC2 capacity provider auto scaling"
+  description = "Enable ECS service task-level auto scaling (CPU/memory based)"
   type        = bool
   default     = false
 }
