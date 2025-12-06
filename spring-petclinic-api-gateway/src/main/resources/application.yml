@@ -22,3 +22,19 @@ spring:
     activate:
       on-profile: docker
     import: optional:configserver:${CONFIG_SERVER_URL:http://config-server:8888}
+
+---
+# AWS profile: Require config-server to be available (ECS will restart if not ready)
+spring:
+  config:
+    activate:
+      on-profile: aws
+    import: configserver:${CONFIG_SERVER_URL:http://config-server.petclinic.local:8888}
+  cloud:
+    config:
+      fail-fast: true
+      retry:
+        initial-interval: 5000
+        max-attempts: 30
+        max-interval: 15000
+        multiplier: 1.5
