@@ -140,7 +140,7 @@ module "alb" {
 }
 
 #############################
-# RDS (Optional - in public subnets for DEV to avoid NAT costs)
+# RDS (Optional - in private subnets for better security)
 #############################
 module "rds" {
   source = "../../modules/rds"
@@ -149,7 +149,7 @@ module "rds" {
   project               = var.project
   environment           = var.environment
   vpc_id                = module.networking.vpc_id
-  subnet_ids            = module.networking.public_subnet_ids  # DEV: public subnets (no NAT needed)
+  subnet_ids            = module.networking.private_subnet_ids  # Private subnets (ECS can still reach via internal VPC routing)
   ecs_security_group_id = module.networking.ecs_security_group_id
   db_password           = var.db_password
 }
