@@ -206,4 +206,7 @@ module "ecs_services" {
   max_task_count            = var.max_task_count
   autoscaling_cpu_target    = var.autoscaling_cpu_target
   autoscaling_memory_target = var.autoscaling_memory_target
+
+  # Task Placement - enforce 1 task per instance for awsvpc + t2.micro ENI limits
+  enable_distinct_instance_placement = true
 }

@@ -171,3 +171,13 @@ variable "scale_out_cooldown" {
   type        = number
   default     = 60
 }
+
+#############################
+# Task Placement
+#############################
+
+variable "enable_distinct_instance_placement" {
+  description = "Enable placement constraint to enforce 1 task per EC2 instance (for awsvpc with limited ENIs)"
+  type        = bool
+  default     = false
+}

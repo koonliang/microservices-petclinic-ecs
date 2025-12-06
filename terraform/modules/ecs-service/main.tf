@@ -125,6 +125,14 @@ resource "aws_ecs_service" "service" {
     type  = "spread"
     field = "instanceId"
   }
+
+  # Placement constraint to enforce 1 task per instance (for awsvpc + t2.micro ENI limits)
+  dynamic "placement_constraints" {
+    for_each = var.enable_distinct_instance_placement ? [1] : []
+    content {
+      type = "distinctInstance"
+    }
+  }
 }
 
 resource "aws_cloudwatch_log_group" "service" {
