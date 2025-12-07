@@ -209,4 +209,7 @@ module "ecs_services" {
 
   # Task Placement - enforce 1 task per instance for awsvpc + t2.micro ENI limits
   enable_distinct_instance_placement = true
+
+  # Capacity Provider (enables managed scaling for EC2 instances)
+  capacity_provider_name = module.ecs_cluster.capacity_provider_name
 }

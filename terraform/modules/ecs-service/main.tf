@@ -88,7 +88,13 @@ resource "aws_ecs_service" "service" {
   cluster         = var.cluster_id
   task_definition = aws_ecs_task_definition.service.arn
   desired_count   = var.desired_count
-  launch_type     = "EC2"
+
+  # Use capacity provider strategy instead of launch_type to enable capacity provider autoscaling
+  capacity_provider_strategy {
+    capacity_provider = var.capacity_provider_name
+    weight            = 100
+    base              = 0
+  }
 
   # Network configuration required for awsvpc mode
   # Note: assign_public_ip is NOT supported for EC2 launch type, only Fargate

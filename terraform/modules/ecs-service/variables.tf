@@ -181,3 +181,12 @@ variable "enable_distinct_instance_placement" {
   type        = bool
   default     = false
 }
+
+#############################
+# Capacity Provider
+#############################
+
+variable "capacity_provider_name" {
+  description = "Name of the capacity provider to use for service placement"
+  type        = string
+}
