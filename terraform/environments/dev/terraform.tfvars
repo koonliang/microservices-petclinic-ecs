@@ -29,4 +29,4 @@ enable_capacity_provider_scaling = true
 enable_autoscaling        = true   # Enable task autoscaling
 max_task_count            = 3      # Max 3 tasks per service (will trigger EC2 scaling)
 autoscaling_cpu_target    = 70     # Scale out when CPU > 70%
-autoscaling_memory_target = 70     # Scale out when memory > 70%
+autoscaling_memory_target = 90     # Scale out when memory > 90%

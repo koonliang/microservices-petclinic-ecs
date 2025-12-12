@@ -120,5 +120,5 @@ variable "autoscaling_cpu_target" {
 variable "autoscaling_memory_target" {
   description = "Target memory utilization percentage for autoscaling"
   type        = number
-  default     = 70
+  default     = 90
 }
