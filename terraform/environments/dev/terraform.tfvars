@@ -26,7 +26,7 @@ enable_capacity_provider_scaling = true
 # Task Auto Scaling - ENABLED (works with capacity provider to scale EC2 instances)
 # Flow: High CPU/Memory → Task autoscaling increases desired_count →
 #       No EC2 capacity → Capacity provider scales out EC2 → Task placed
-enable_autoscaling        = true   # Enable task autoscaling
-max_task_count            = 3      # Max 3 tasks per service (will trigger EC2 scaling)
-autoscaling_cpu_target    = 70     # Scale out when CPU > 70%
-autoscaling_memory_target = 90     # Scale out when memory > 90%
+enable_autoscaling         = true   # Enable task autoscaling
+enable_memory_autoscaling  = false  # Disable memory-based autoscaling for dev
+max_task_count             = 3      # Max 3 tasks per service (will trigger EC2 scaling)
+autoscaling_cpu_target     = 90     # Scale out when CPU > 90%

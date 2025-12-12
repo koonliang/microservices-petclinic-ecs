@@ -117,6 +117,12 @@ variable "autoscaling_cpu_target" {
   default     = 70
 }
 
+variable "enable_memory_autoscaling" {
+  description = "Enable memory-based autoscaling in addition to CPU"
+  type        = bool
+  default     = false
+}
+
 variable "autoscaling_memory_target" {
   description = "Target memory utilization percentage for autoscaling"
   type        = number

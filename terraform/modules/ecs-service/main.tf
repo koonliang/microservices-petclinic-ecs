@@ -180,7 +180,7 @@ resource "aws_appautoscaling_policy" "cpu" {
 }
 
 resource "aws_appautoscaling_policy" "memory" {
-  count = var.enable_autoscaling ? 1 : 0
+  count = var.enable_autoscaling && var.enable_memory_autoscaling ? 1 : 0
 
   name               = "${var.project}-${var.service_name}-memory-scaling"
   policy_type        = "TargetTrackingScaling"

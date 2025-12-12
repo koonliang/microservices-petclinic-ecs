@@ -200,6 +200,7 @@ module "ecs_services" {
 
   # ECS Service Auto Scaling
   enable_autoscaling        = var.enable_autoscaling
+  enable_memory_autoscaling = var.enable_memory_autoscaling
   cluster_name              = module.ecs_cluster.cluster_name
   min_task_count            = each.value.desired_count
   max_task_count            = var.max_task_count
