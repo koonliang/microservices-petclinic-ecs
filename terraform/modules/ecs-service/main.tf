@@ -88,7 +88,13 @@ resource "aws_ecs_service" "service" {
   cluster         = var.cluster_id
   task_definition = aws_ecs_task_definition.service.arn
   desired_count   = var.desired_count
-  launch_type     = "EC2"
+
+  # Use capacity provider strategy instead of launch_type to enable capacity provider autoscaling
+  capacity_provider_strategy {
+    capacity_provider = var.capacity_provider_name
+    weight            = 100
+    base              = 0
+  }
 
   # Network configuration required for awsvpc mode
   # Note: assign_public_ip is NOT supported for EC2 launch type, only Fargate
@@ -124,6 +130,14 @@ resource "aws_ecs_service" "service" {
   ordered_placement_strategy {
     type  = "spread"
     field = "instanceId"
+  }
+
+  # Placement constraint to enforce 1 task per instance (for awsvpc + t2.micro ENI limits)
+  dynamic "placement_constraints" {
+    for_each = var.enable_distinct_instance_placement ? [1] : []
+    content {
+      type = "distinctInstance"
+    }
   }
 }
 
@@ -166,7 +180,7 @@ resource "aws_appautoscaling_policy" "cpu" {
 }
 
 resource "aws_appautoscaling_policy" "memory" {
-  count = var.enable_autoscaling ? 1 : 0
+  count = var.enable_autoscaling && var.enable_memory_autoscaling ? 1 : 0
 
   name               = "${var.project}-${var.service_name}-memory-scaling"
   policy_type        = "TargetTrackingScaling"

@@ -154,6 +154,12 @@ variable "autoscaling_cpu_target" {
   default     = 70
 }
 
+variable "enable_memory_autoscaling" {
+  description = "Enable memory-based autoscaling in addition to CPU"
+  type        = bool
+  default     = false
+}
+
 variable "autoscaling_memory_target" {
   description = "Target memory utilization percentage for autoscaling"
   type        = number
@@ -170,4 +176,23 @@ variable "scale_out_cooldown" {
   description = "Cooldown period in seconds before scaling out"
   type        = number
   default     = 60
+}
+
+#############################
+# Task Placement
+#############################
+
+variable "enable_distinct_instance_placement" {
+  description = "Enable placement constraint to enforce 1 task per EC2 instance (for awsvpc with limited ENIs)"
+  type        = bool
+  default     = false
+}
+
+#############################
+# Capacity Provider
+#############################
+
+variable "capacity_provider_name" {
+  description = "Name of the capacity provider to use for service placement"
+  type        = string
 }
